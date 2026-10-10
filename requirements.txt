@@ -1,0 +1,16 @@
+# Data handling
+pandas>=2.1
+numpy>=1.26
+scikit-learn>=1.4
+
+# Ingestion (Basketball-Reference scraping)
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
+
+# UI
+streamlit>=1.35
+
+# Dev / test
+pytest>=8.0
+ruff>=0.5
