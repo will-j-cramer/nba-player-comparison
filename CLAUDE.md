@@ -63,6 +63,8 @@ Basketball-Reference
 - Traded players are already collapsed to one row per season by ingestion.
 - Era gaps: 3PT stats don't exist before 1979-80 and TOV (so USG%/TOV%) before 1977-78.
   These arrive as NULL from ingestion; keep them missing, never zero.
+- Coverage can be partial within a season (e.g. 1973-74 has TOV only for Seattle players).
+  Only use a stat for a season when nearly all of that season's players have it.
 - Minimum-minutes / games filters to exclude tiny samples.
 - Pace / era adjustment and per-season z-score normalization so a 1965 season and a 2023
   season are comparable.
@@ -113,6 +115,7 @@ pip install -r requirements.txt
 pip install -e .                 # provides the nba-ingest command
 nba-ingest                       # load 1973-74 → present into data/nba.sqlite (resumable)
 scripts/make_fixtures.sh         # build parser test fixtures from data/raw
+python scripts/check_ingestion.py  # per-season counts, spot checks, NULL checks
 pytest
 ruff check .
 ruff format .
