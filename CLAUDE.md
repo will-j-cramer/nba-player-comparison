@@ -14,14 +14,17 @@ decomposable into per-feature contributions that the UI can surface.
 
 ## Data source
 
-[Basketball-Reference](https://www.basketball-reference.com/) season pages, scraped. Chosen
-because it covers every season back to 1946-47 with consistent per-game, per-100-possession,
-and advanced tables.
+[Basketball-Reference](https://www.basketball-reference.com/) season pages, scraped: the
+per-100-possession (`NBA_{year}_per_poss.html`) and advanced (`NBA_{year}_advanced.html`)
+league pages. Coverage starts with **1973-74** (end year 1974), the first season with
+per-100-possession stats; seasons are identified by their end year (2023 = 2022-23).
 
 Scraping etiquette (non-negotiable):
 - Rate limit to **≤ 1 request every 3–4 seconds** (B-Ref blocks clients above ~20 req/min).
 - Send a descriptive `User-Agent`.
 - **Cache raw HTML** under `data/raw/` and never re-fetch a page that is already cached.
+  The one exception: a season still in progress (or last loaded while in progress) is
+  refetched so its stats are current.
 - Follow Basketball-Reference's terms of use; do not redistribute scraped data.
 
 ## Architecture
@@ -42,15 +45,23 @@ Basketball-Reference
 ```
 
 ### 1. `ingestion/`
-- Fetch season pages (per-game, per-100 possessions, advanced) with `requests`; parse with
-  `BeautifulSoup` / `pandas.read_html` (note: some B-Ref tables are inside HTML comments).
-- Cache raw HTML to `data/raw/`; parsing reads from the cache, never directly from the network.
-- Write normalized tables to SQLite with stable keys (player id from B-Ref URL slug + season).
+- `client.py`: rate-limited HTTP (≥ 4 s between requests), retries with exponential backoff on
+  connection errors/5xx, honors short `Retry-After` on 429 and aborts on long ones.
+- `cache.py`: raw HTML cache in `data/raw/`; parsing reads from the cache.
+- `parse.py`: B-Ref HTML → raw rows keyed by our column names (some B-Ref tables are inside
+  HTML comments). `records.py` holds the column lists that the schema and parser share.
+- `transform.py`: rows → one `PlayerSeason` per player per season.
+- `schema.py` / `store.py`: SQLite schema; each season is written in one transaction and
+  recorded in `ingested_seasons`, which makes re-runs skip completed seasons.
+- **Traded players:** keep only B-Ref's combined row (`TOT`, or `2TM`/`3TM` since 2024),
+  stored with team `TOT`; per-team stints go to `player_season_teams`. Similarity compares
+  whole seasons, per-team rows would duplicate players in results, and B-Ref computes the
+  advanced stats on the combined row over the full season.
 
 ### 2. `features/`
-- Traded players: prefer the `TOT` (season total) row over per-team rows.
-- Era gaps: 3PT stats don't exist before 1979-80; STL/BLK before 1973-74; TOV before 1977-78;
-  some advanced stats are missing for early seasons. Represent these as missing, never as zero.
+- Traded players are already collapsed to one row per season by ingestion.
+- Era gaps: 3PT stats don't exist before 1979-80 and TOV (so USG%/TOV%) before 1977-78.
+  These arrive as NULL from ingestion; keep them missing, never zero.
 - Minimum-minutes / games filters to exclude tiny samples.
 - Pace / era adjustment and per-season z-score normalization so a 1965 season and a 2023
   season are comparable.
