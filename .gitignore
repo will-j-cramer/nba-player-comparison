@@ -22,6 +22,9 @@ htmlcov/
 data/raw/*
 data/processed/*
 !data/**/.gitkeep
+# Test fixtures are trimmed B-Ref pages: generated locally, never committed
+tests/fixtures/*
+!tests/fixtures/.gitkeep
 *.sqlite
 *.sqlite3
 *.db

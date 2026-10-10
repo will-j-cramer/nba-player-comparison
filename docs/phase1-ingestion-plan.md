@@ -1,12 +1,17 @@
 # Plan: Phase 1 — Basketball-Reference ingestion
 
 ## Status
-- **Done:** `client.py` (named `http.py` below; renamed to avoid shadowing the stdlib `http`),
-  `cache.py`, `records.py` (shared column lists + record types), `transform.py`
-  (traded-player collapse, page merge), `schema.py`, `store.py`, `pipeline.py`, with unit tests.
-- **Blocked on network access to www.basketball-reference.com:** step 0 (inspect real HTML),
-  `columns.py`/`parse.py`, the trimmed 2022-23 fixtures and the fixture-based season test,
-  `cli.py`/`__main__.py` + `[project.scripts]`, and the full ingestion run / phase gate.
+- **Done:** every module in the table below (`http.py` was renamed `client.py` so it can't
+  shadow the stdlib `http`; `records.py` and `transform.py` were added), the `nba-ingest` CLI,
+  and 47 tests, all passing.
+- **Fixtures:** gitignored rather than committed, because the repo is public and scraped data
+  is not redistributed. `scripts/make_fixtures.sh` builds them from `data/raw/`.
+- **Blocked: the full run.** Basketball-Reference's Cloudflare bot protection answers the
+  Python client with a 403 "Just a moment..." challenge from this cloud network, even though
+  plain curl got 200. Seasons 1974 and 2023 loaded from cache; the rest were not fetched.
+  The client now raises `BlockedError` for this and does not retry. Getting past the
+  challenge (e.g. imitating a browser) would defeat an anti-bot measure the site set up on
+  purpose, so it needs a decision from the project owner.
 
 ## Context
 The scaffold is committed (`77d8bf7`), but `src/nba_similarity/ingestion/` is still an empty package. Phase 1 fills the SQLite raw tables that every later phase reads. The user wants per-100-possession and advanced stats for every player-season. Decisions from the Q&A:

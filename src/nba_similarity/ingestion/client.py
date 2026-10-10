@@ -35,6 +35,10 @@ class RateLimitedError(FetchError):
     """The server asked us to wait longer than we are willing to (likely a temporary ban)."""
 
 
+class BlockedError(FetchError):
+    """Cloudflare bot protection served a challenge page instead of content. Not retried."""
+
+
 class PoliteClient:
     """Fetches pages no faster than one request per `delay_s`, retrying transient failures.
 
@@ -78,6 +82,11 @@ class PoliteClient:
                 continue
 
             status = response.status_code
+            if _is_bot_challenge(response):
+                raise BlockedError(
+                    f"{url}: HTTP {status} Cloudflare bot challenge; the site is refusing this "
+                    "client from this network"
+                )
             if status == 200:
                 return response.text
             if status == 404:
@@ -109,6 +118,12 @@ class PoliteClient:
         wait = BACKOFF_BASE_S * 2**attempt + self._jitter()
         logger.warning("%s for %s; retry %d in %.1fs", reason, url, attempt + 1, wait)
         self._sleep(wait)
+
+
+def _is_bot_challenge(response: requests.Response) -> bool:
+    if response.headers.get("cf-mitigated") == "challenge":
+        return True
+    return response.status_code in (403, 503) and "<title>Just a moment...</title>" in response.text
 
 
 def _parse_retry_after(value: str | None) -> float | None:

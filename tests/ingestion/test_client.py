@@ -5,6 +5,7 @@ import requests
 
 from nba_similarity.ingestion.client import (
     BACKOFF_BASE_S,
+    BlockedError,
     FetchError,
     PageNotFoundError,
     PoliteClient,
@@ -126,3 +127,18 @@ def test_other_4xx_fails_without_retry() -> None:
     with pytest.raises(FetchError, match="HTTP 403"):
         client.get(URL)
     assert len(session.request_times) == 1
+
+
+@pytest.mark.parametrize("status", [403, 503])
+def test_cloudflare_challenge_raises_blocked_without_retry(status: int) -> None:
+    challenge = FakeResponse(status, "<html><head><title>Just a moment...</title></head></html>")
+    client, session, _ = make_client([challenge])
+    with pytest.raises(BlockedError, match="Cloudflare"):
+        client.get(URL)
+    assert len(session.request_times) == 1
+
+
+def test_cf_mitigated_header_raises_blocked() -> None:
+    client, _, _ = make_client([FakeResponse(200, "", headers={"cf-mitigated": "challenge"})])
+    with pytest.raises(BlockedError):
+        client.get(URL)

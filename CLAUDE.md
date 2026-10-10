@@ -48,8 +48,9 @@ Basketball-Reference
 - `client.py`: rate-limited HTTP (≥ 4 s between requests), retries with exponential backoff on
   connection errors/5xx, honors short `Retry-After` on 429 and aborts on long ones.
 - `cache.py`: raw HTML cache in `data/raw/`; parsing reads from the cache.
-- `parse.py`: B-Ref HTML → raw rows keyed by our column names (some B-Ref tables are inside
-  HTML comments). `records.py` holds the column lists that the schema and parser share.
+- `parse.py` / `columns.py`: B-Ref HTML → raw rows keyed by our column names (cells are
+  identified by their `data-stat` attribute). `records.py` holds the column lists that the
+  schema and parser share.
 - `transform.py`: rows → one `PlayerSeason` per player per season.
 - `schema.py` / `store.py`: SQLite schema; each season is written in one transaction and
   recorded in `ingested_seasons`, which makes re-runs skip completed seasons.
@@ -87,7 +88,9 @@ Basketball-Reference
   `data/nba.sqlite` and is gitignored.
 - **Small, focused modules**: one responsibility per module. Keep pure transformation logic
   separate from I/O (network, disk, database) so it is easy to test.
-- **No network calls in tests.** Use saved HTML snippets in `tests/fixtures/`.
+- **No network calls in tests.** Parser tests use trimmed B-Ref pages in `tests/fixtures/`,
+  which are gitignored (scraped data is not redistributed) and built locally with
+  `scripts/make_fixtures.sh`; tests needing them skip when they are missing.
 - **ruff** for linting and formatting.
 
 ## Phase gating
@@ -107,6 +110,9 @@ Do not start a downstream phase on top of unverified upstream data.
 
 ```bash
 pip install -r requirements.txt
+pip install -e .                 # provides the nba-ingest command
+nba-ingest                       # load 1973-74 → present into data/nba.sqlite (resumable)
+scripts/make_fixtures.sh         # build parser test fixtures from data/raw
 pytest
 ruff check .
 ruff format .
