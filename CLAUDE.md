@@ -60,20 +60,28 @@ Basketball-Reference
   advanced stats on the combined row over the full season.
 
 ### 2. `features/`
-- Traded players are already collapsed to one row per season by ingestion.
-- Era gaps: 3PT stats don't exist before 1979-80 and TOV (so USG%/TOV%) before 1977-78.
-  These arrive as NULL from ingestion; keep them missing, never zero.
-- Coverage can be partial within a season (e.g. 1973-74 has TOV only for Seattle players).
-  Only use a stat for a season when nearly all of that season's players have it.
-- Minimum-minutes / games filters to exclude tiny samples.
-- Pace / era adjustment and per-season z-score normalization so a 1965 season and a 2023
-  season are comparable.
-- Persist the feature matrix to SQLite.
+Run with `nba-features`; definitions live in `definitions.py`.
+- **12 rate stats in 5 categories:** scoring (pts/100, USG%, 3PA rate, FT rate), efficiency
+  (TS%, FT%), playmaking (AST%, TOV%), rebounding (ORB%, DRB%), defense (STL%, BLK%).
+  Composites (PER/BPM/WS/VORP), 3P%/FG% and ORtg/DRtg are deliberately excluded.
+- **Minimum minutes:** 500, scaled by schedule length (1998-99: 305, 2011-12: 402,
+  2019-20: 433, 2020-21: 439; a season in progress uses games played so far).
+- **Era adjustment:** z-scores within each season, using mean and population SD over
+  qualified players only, clipped to ±4. Raw values are stored next to the z-scores.
+- **Missing values stay NULL, never filled.** A stat counts for a season only if ≥ 90% of
+  qualified players have it (1973-74 TOV is Seattle-only, so it is dropped that season).
+  Era gaps: 3PT stats before 1979-80, USG%/TOV% before 1977-78.
+- **Output tables:** `feature_definitions` (category/label per feature),
+  `feature_season_stats` (per-season mean/sd/coverage), `player_season_features`
+  (raw + `z_<feature>` + `n_features` per qualified player-season). They are rebuilt whole
+  on every run and have no foreign keys into ingestion tables, so re-ingesting is never
+  blocked; re-run `nba-features` after `nba-ingest`.
 
 ### 3. `similarity/`
 - Weighted distance (or cosine similarity) over feature vectors.
-- Handle missing features explicitly (e.g. compare only on the shared feature set and
-  report coverage) — never silently zero-fill.
+- Handle missing features explicitly: compare only on the shared feature set, average
+  (don't sum) over it, require a minimum shared share, and report coverage — never zero-fill.
+- Weight the five feature categories equally, regardless of how many stats each has.
 - Return top-N matches **plus per-feature contributions**, which drive the explanations.
 
 ### 4. `ui/`
@@ -116,6 +124,7 @@ pip install -e .                 # provides the nba-ingest command
 nba-ingest                       # load 1973-74 → present into data/nba.sqlite (resumable)
 scripts/make_fixtures.sh         # build parser test fixtures from data/raw
 python scripts/check_ingestion.py  # per-season counts, spot checks, NULL checks
+nba-features                     # build the feature matrix and print its sanity summary
 pytest
 ruff check .
 ruff format .
