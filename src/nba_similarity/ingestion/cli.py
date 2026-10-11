@@ -15,7 +15,7 @@ from nba_similarity.ingestion.client import (
     PoliteClient,
     RateLimitedError,
 )
-from nba_similarity.ingestion.parse import parse_page
+from nba_similarity.ingestion.parse import ParseError, parse_page
 from nba_similarity.ingestion.pipeline import FIRST_SEASON, current_season, ingest
 from nba_similarity.ingestion.schema import connect
 
@@ -84,6 +84,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 3
     except FetchError as exc:
         logger.error("fetch failed: %s. Re-run to resume.", exc)
+        return 1
+    except ParseError as exc:
+        logger.error("could not parse a finished season: %s. B-Ref's layout may have changed.", exc)
         return 1
     finally:
         conn.close()

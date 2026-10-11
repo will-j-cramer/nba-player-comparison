@@ -9,8 +9,9 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from nba_similarity.ingestion.cache import Fetcher, Page, fetch_page
+from nba_similarity.ingestion.cache import Fetcher, Page, cache_path, fetch_page
 from nba_similarity.ingestion.client import PageNotFoundError
+from nba_similarity.ingestion.parse import ParseError
 from nba_similarity.ingestion.records import RawRow
 from nba_similarity.ingestion.store import ingested_seasons, write_season
 from nba_similarity.ingestion.transform import build_season
@@ -27,7 +28,7 @@ ParsePage = Callable[[str, Page], list[RawRow]]
 class IngestReport:
     loaded: dict[int, int] = field(default_factory=dict)  # season -> player-season rows
     skipped: list[int] = field(default_factory=list)  # already final in the database
-    unavailable: list[int] = field(default_factory=list)  # 404, e.g. not started yet
+    unavailable: list[int] = field(default_factory=list)  # not started yet (404 or no table)
 
 
 def current_season(today: date) -> int:
@@ -53,8 +54,13 @@ def ingest(
     """Load each season into the database, skipping seasons already loaded as final.
 
     The cached HTML is bypassed (refetched) when `force` is set, when the season is still in
-    progress, or when it was last loaded while in progress. RateLimitedError and other
-    FetchErrors propagate; seasons loaded before the failure stay loaded, so a re-run resumes.
+    progress, or when it was last loaded while in progress.
+
+    A season that has not started yet is reported as unavailable: B-Ref answers 404, or (for
+    the upcoming season) serves a page without a stats table. A page without a table for a
+    finished season raises ParseError, since that means the site layout changed.
+    RateLimitedError and other FetchErrors propagate; seasons loaded before the failure stay
+    loaded, so a re-run resumes.
     """
     today = today or date.today()
     report = IngestReport()
@@ -75,6 +81,14 @@ def ingest(
             }
         except PageNotFoundError:
             logger.warning("season %d: page not found (season not started?), skipping", season)
+            report.unavailable.append(season)
+            continue
+        except ParseError as exc:
+            if final:
+                raise
+            logger.warning("season %d: no stats yet (%s), skipping", season, exc)
+            for page in ("per_poss", "advanced"):
+                cache_path(raw_dir, season, page).unlink(missing_ok=True)
             report.unavailable.append(season)
             continue
 

@@ -14,6 +14,7 @@ import pytest
 
 from nba_similarity.ingestion.cache import Page
 from nba_similarity.ingestion.client import PageNotFoundError, RateLimitedError
+from nba_similarity.ingestion.parse import ParseError
 from nba_similarity.ingestion.pipeline import current_season, ingest, is_final
 from nba_similarity.ingestion.records import RawRow
 from nba_similarity.ingestion.schema import init_db
@@ -134,3 +135,20 @@ def test_rate_limit_aborts_but_keeps_completed_seasons(conn, tmp_path: Path) -> 
     with pytest.raises(RateLimitedError):
         run(conn, tmp_path, FakeClient(rate_limit_on=2025), [2024, 2025])
     assert dict(conn.execute("SELECT season, is_final FROM ingested_seasons")) == {2024: 1}
+
+
+def parse_without_table(html: str, page: Page) -> list[RawRow]:
+    raise ParseError("no <table id='per_poss'> with a body")
+
+
+def test_upcoming_season_page_without_table_is_unavailable(conn, tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    report = ingest([2027], conn, FakeClient(), raw_dir, parse_without_table, today=TODAY)
+    assert report.unavailable == [2027] and report.loaded == {}
+    assert not list(raw_dir.glob("NBA_2027_*"))  # placeholder page is not kept in the cache
+    assert conn.execute("SELECT COUNT(*) FROM ingested_seasons").fetchone() == (0,)
+
+
+def test_finished_season_page_without_table_raises(conn, tmp_path: Path) -> None:
+    with pytest.raises(ParseError):
+        ingest([2025], conn, FakeClient(), tmp_path / "raw", parse_without_table, today=TODAY)

@@ -1,17 +1,18 @@
 # Plan: Phase 1 — Basketball-Reference ingestion
 
-## Status
-- **Done:** every module in the table below (`http.py` was renamed `client.py` so it can't
-  shadow the stdlib `http`; `records.py` and `transform.py` were added), the `nba-ingest` CLI,
-  and 47 tests, all passing.
-- **Fixtures:** gitignored rather than committed, because the repo is public and scraped data
-  is not redistributed. `scripts/make_fixtures.sh` builds them from `data/raw/`.
-- **Blocked: the full run.** Basketball-Reference's Cloudflare bot protection answers the
-  Python client with a 403 "Just a moment..." challenge from this cloud network, even though
-  plain curl got 200. Seasons 1974 and 2023 loaded from cache; the rest were not fetched.
-  The client now raises `BlockedError` for this and does not retry. Getting past the
-  challenge (e.g. imitating a browser) would defeat an anti-bot measure the site set up on
-  purpose, so it needs a decision from the project owner.
+## Status — complete
+- All modules, the `nba-ingest` CLI and 49 tests are done (`http.py` was renamed `client.py`;
+  `records.py` and `transform.py` were added). Fixtures are gitignored (public repo, no
+  redistribution) and built with `scripts/make_fixtures.sh`.
+- Cloudflare challenged the client from the cloud environment, so the full run was done from
+  the project owner's machine (2026-10-11): 53 seasons, 1973-74 → 2025-26, no gaps,
+  222 → ~580 player-seasons per season.
+- Spot checks match B-Ref: Kareem 1975-76 (PER 27.2, WS 17.0, TS .567), Jordan 1987-88
+  (PER 31.7, WS 21.2, USG 34.1), Jokić 2022-23 (PER 31.5, WS 14.9, TS .701).
+- Era gaps are NULL, never 0: 3PT before 1979-80, USG% before 1977-78. TOV before 1977-78
+  is NULL except 27 rows with partial team coverage (e.g. 1973-74 Seattle).
+- The run ended on 2026-27, which hadn't started: B-Ref serves its page without a stats
+  table. That case is now reported as unavailable (and not cached) instead of crashing.
 
 ## Context
 The scaffold is committed (`77d8bf7`), but `src/nba_similarity/ingestion/` is still an empty package. Phase 1 fills the SQLite raw tables that every later phase reads. The user wants per-100-possession and advanced stats for every player-season. Decisions from the Q&A:
