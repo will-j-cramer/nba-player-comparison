@@ -13,6 +13,11 @@
   is NULL except 27 rows with partial team coverage (e.g. 1973-74 Seattle).
 - The run ended on 2026-27, which hadn't started: B-Ref serves its page without a stats
   table. That case is now reported as unavailable (and not cached) instead of crashing.
+- Accented names were garbled because B-Ref sends no charset (requests fell back to
+  ISO-8859-1). The client now defaults to UTF-8; `scripts/repair_cache_encoding.py`
+  repaired the 107 cached pages and the database was rebuilt from cache.
+- **Phase gate passed (2026-10-11):** 22,105 player-seasons, 0 garbled names, spot checks
+  and NULL checks as above, 53/53 tests passing on the owner's machine with real fixtures.
 
 ## Context
 The scaffold is committed (`77d8bf7`), but `src/nba_similarity/ingestion/` is still an empty package. Phase 1 fills the SQLite raw tables that every later phase reads. The user wants per-100-possession and advanced stats for every player-season. Decisions from the Q&A:
