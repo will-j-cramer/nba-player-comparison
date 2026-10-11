@@ -57,6 +57,13 @@ def main() -> None:
             f"TS%={ts} USG%={usg} PER={per} WS={ws}"
         )
 
+    garbled = conn.execute(
+        "SELECT name FROM players WHERE name GLOB '*[ÃÄÅ]*' ORDER BY name"
+    ).fetchall()
+    print(f"\n== Garbled player names (should be 0): {len(garbled)} ==")
+    for (name,) in garbled[:5]:
+        print(f"  {name!r}")
+
     print("\n== Era gaps should be NULL, never 0 ==")
     checks = [
         ("per100_stats", "fg3", "season < 1980", "3PT before 1979-80"),

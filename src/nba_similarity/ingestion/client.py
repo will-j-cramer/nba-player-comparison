@@ -88,7 +88,7 @@ class PoliteClient:
                     "client from this network"
                 )
             if status == 200:
-                return response.text
+                return _decode(response)
             if status == 404:
                 raise PageNotFoundError(url)
             if status == 429:
@@ -118,6 +118,17 @@ class PoliteClient:
         wait = BACKOFF_BASE_S * 2**attempt + self._jitter()
         logger.warning("%s for %s; retry %d in %.1fs", reason, url, attempt + 1, wait)
         self._sleep(wait)
+
+
+def _decode(response: requests.Response) -> str:
+    """Decode the body, defaulting to UTF-8 when the server sends no charset.
+
+    Basketball-Reference serves UTF-8 without a charset in Content-Type, and `requests` then
+    falls back to ISO-8859-1 for text/html, garbling names such as "Jokić" into "JokiÄ\x87".
+    """
+    if "charset=" in response.headers.get("Content-Type", "").lower():
+        return response.text
+    return response.content.decode("utf-8", errors="replace")
 
 
 def _is_bot_challenge(response: requests.Response) -> bool:

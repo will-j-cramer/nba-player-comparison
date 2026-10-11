@@ -16,10 +16,14 @@ URL = "https://example.test/page.html"
 
 
 class FakeResponse:
-    def __init__(self, status: int, text: str = "", headers: dict[str, str] | None = None):
+    """Mimics requests.Response: `text` falls back to ISO-8859-1 when no charset is declared."""
+
+    def __init__(self, status: int, body: str = "", headers: dict[str, str] | None = None):
         self.status_code = status
-        self.text = text
         self.headers = headers or {}
+        self.content = body.encode("utf-8")
+        declared = "charset=" in self.headers.get("Content-Type", "").lower()
+        self.text = body if declared else self.content.decode("iso-8859-1")
 
 
 class FakeSession:
@@ -142,3 +146,15 @@ def test_cf_mitigated_header_raises_blocked() -> None:
     client, _, _ = make_client([FakeResponse(200, "", headers={"cf-mitigated": "challenge"})])
     with pytest.raises(BlockedError):
         client.get(URL)
+
+
+def test_decodes_utf8_when_server_sends_no_charset() -> None:
+    page = FakeResponse(200, "<td>Nikola Jokić</td>", headers={"Content-Type": "text/html"})
+    client, _, _ = make_client([page])
+    assert client.get(URL) == "<td>Nikola Jokić</td>"
+
+
+def test_uses_declared_charset() -> None:
+    page = FakeResponse(200, "Dončić", headers={"Content-Type": "text/html; charset=UTF-8"})
+    client, _, _ = make_client([page])
+    assert client.get(URL) == "Dončić"
