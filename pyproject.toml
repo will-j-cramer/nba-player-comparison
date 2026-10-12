@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 [project.scripts]
 nba-ingest = "nba_similarity.ingestion.cli:main"
 nba-features = "nba_similarity.features.cli:main"
+nba-similar = "nba_similarity.similarity.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

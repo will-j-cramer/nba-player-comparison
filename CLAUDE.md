@@ -84,11 +84,26 @@ Run with `nba-features`; definitions live in `definitions.py`.
   blocked; re-run `nba-features` after `nba-ingest`.
 
 ### 3. `similarity/`
-- Weighted distance (or cosine similarity) over feature vectors.
-- Handle missing features explicitly: compare only on the shared feature set, average
-  (don't sum) over it, require a minimum shared share, and report coverage — never zero-fill.
-- Weight the five feature categories equally, regardless of how many stats each has.
-- Return top-N matches **plus per-feature contributions**, which drive the explanations.
+Run with `nba-similar "Nikola Jokic" 2023`. The engine is
+`SimilarityEngine(FeatureMatrix, SimilarityConfig)`: build it once, query it many times.
+- **Pipeline:** z-scores from `player_season_features` → optional sklearn `StandardScaler` →
+  per-feature weights (each category's weight split evenly over its stats; default equal) →
+  optional sklearn `PCA` (int components or variance share) → euclidean or cosine scores.
+- **Score (0–100), `scoring.py`:**
+  - **Euclidean:** `100 × (1 − D² / E[D²])`, where E[D²] is the expected distance from
+    *this query* to a random player-season. 0 means "no closer than a typical season".
+    Because the baseline is per query, outliers aren't penalised, and matching a query's
+    distinctive traits earns more than matching average ones.
+  - **Cosine:** `100 × cos` of the weighted vectors.
+  - Negative scores are clipped to 0.
+- **Exact explanations:** every score is a sum of per-feature contributions, also under PCA
+  (via the projection P = VᵀV). Each match returns its top contributing features with the
+  query's and match's z and raw values.
+- **Missing values:** without PCA, compare on the shared stats only (distance and baseline
+  both cover only those) and require `min_shared` (default 75%) of the weight. With PCA, a
+  query is compared only with seasons that have all of the query's stats.
+- **Own seasons:** excluded by default (`include_same_player=True` to include them); the
+  query row itself is never returned.
 
 ### 4. `ui/`
 - Streamlit app at `src/nba_similarity/ui/app.py`: player + season pickers, results table,
@@ -131,6 +146,7 @@ nba-ingest                       # load 1973-74 → present into data/nba.sqlite
 scripts/make_fixtures.sh         # build parser test fixtures from data/raw
 python scripts/check_ingestion.py  # per-season counts, spot checks, NULL checks
 nba-features                     # build the feature matrix and print its sanity summary
+nba-similar "Nikola Jokic" 2023  # top matches; --metric cosine --pca 0.9 --weight scoring=2
 pytest
 ruff check .
 ruff format .
