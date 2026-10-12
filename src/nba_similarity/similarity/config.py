@@ -27,9 +27,12 @@ class SimilarityConfig:
       (share of variance to keep). With PCA, a query is only compared with seasons that
       have every feature the query has, since PCA cannot handle missing values.
     - min_shared: without PCA, candidates must share at least this share of the total
-      feature weight with the query (pre-1980 seasons lack 3PA rate, USG%, TOV%).
+      feature weight with the query (pre-1980 seasons lack 3PA rate, USG%, TOV%). Stats a
+      candidate lacks also count as "typical" in its score (see scoring.py).
     - include_same_player: also return the query player's other seasons.
-    - top_features: how many most-contributing features to return per match.
+    - top_features: how many similar traits (and differences) to return per match.
+    - close_z: two seasons count as "alike" on a stat when their z-scores are within this
+      many SD; further apart, the stat is listed as a difference instead.
     """
 
     metric: Metric = "euclidean"
@@ -39,6 +42,7 @@ class SimilarityConfig:
     min_shared: float = 0.75
     include_same_player: bool = False
     top_features: int = 3
+    close_z: float = 1.0
 
     def __post_init__(self) -> None:
         if self.metric not in ("euclidean", "cosine"):
@@ -52,6 +56,8 @@ class SimilarityConfig:
             raise ValueError("pca_components must be None, an int >= 1, or a float in (0, 1)")
         if self.top_features < 0:
             raise ValueError("top_features must be >= 0")
+        if self.close_z <= 0:
+            raise ValueError("close_z must be > 0")
 
 
 def feature_weights(categories: Sequence[str], category_weights: Mapping[str, float]) -> np.ndarray:

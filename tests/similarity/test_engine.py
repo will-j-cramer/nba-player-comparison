@@ -90,9 +90,8 @@ def test_full_rank_pca_matches_no_pca(metric: str) -> None:
     np.testing.assert_allclose([m.score for m in a], [m.score for m in b], atol=1e-6)
 
 
-def test_top_features_explain_the_match() -> None:
-    z = np.zeros((30, len(NAMES)))
-    z[:, :] = random_population(30) * 0.3
+def test_similar_traits_explain_the_match() -> None:
+    z = random_population(30) * 0.3
     z[0, col("ast_pct")] = 3.5  # a distinctive passer
     z[1] = z[0]
     z[1, col("ast_pct")] = 3.3  # ...matched by another distinctive passer
@@ -100,24 +99,62 @@ def test_top_features_explain_the_match() -> None:
     engine = SimilarityEngine(make_matrix(z), SimilarityConfig(top_features=4))
     match = engine.find_similar("p0", 2020, n=1)[0]
     assert match.player_id == "p1"
-    features = [c.feature for c in match.top_features]
+    features = [c.feature for c in match.similar_traits]
     assert features[0] == "ast_pct"
     assert "blk_pct" not in features and len(features) == 4
-    points = [c.points for c in match.top_features]
+    points = [c.points for c in match.similar_traits]
     assert points == sorted(points, reverse=True)
-    top = match.top_features[0]
+    top = match.similar_traits[0]
     assert (top.query_z, top.match_z, top.query_raw) == (3.5, 3.3, 35.0)
+    assert match.differences == ()
+
+
+def test_far_apart_stat_is_a_difference_not_a_similarity() -> None:
+    """Like Harden vs Jokic on rebounding: closer than typical, but not alike."""
+    z = random_population(200) * 0.5
+    z[0] = 0.0
+    z[0, col("ast_pct")] = 3.5
+    z[0, col("drb_pct")] = 3.0
+    z[1] = 0.0
+    z[1, col("ast_pct")] = 3.4
+    z[1, col("drb_pct")] = 0.8  # 2.2 SD apart
+    engine = SimilarityEngine(make_matrix(z), SimilarityConfig(standardize=False))
+    match = engine.find_similar("p0", 2020, n=1)[0]
+    assert match.player_id == "p1"
+    assert match.contributions["drb_pct"] > 0  # it still earns points...
+    assert "drb_pct" not in [c.feature for c in match.similar_traits]  # ...but isn't "alike"
+    assert match.differences[0].feature == "drb_pct"
+    assert match.similar_traits[0].feature == "ast_pct"
+    wider = engine.with_config(close_z=2.5).find_similar("p0", 2020, n=1)[0]
+    assert "drb_pct" in [c.feature for c in wider.similar_traits]
+
+
+@pytest.mark.parametrize("metric", ["euclidean", "cosine"])
+@pytest.mark.parametrize("pca", [None, 0.8])
+def test_contributions_sum_to_score(metric: str, pca: float | None) -> None:
+    engine = engine_with_twins(metric=metric, pca_components=pca)
+    for match in engine.find_similar("star", 2020, n=10):
+        assert sum(match.contributions.values()) == pytest.approx(match.score, abs=1e-6)
 
 
 def test_zero_weight_category_never_explains() -> None:
     engine = engine_with_twins(category_weights={"rebounding": 0}, top_features=12)
-    match = engine.find_similar("star", 2020, n=1)[0]
-    assert {c.category for c in match.top_features} == {
-        "scoring",
-        "efficiency",
-        "playmaking",
-        "defense",
-    }
+    for match in engine.find_similar("star", 2020, n=5):
+        named = {c.category for c in match.similar_traits + match.differences}
+        assert "rebounding" not in named
+        assert "orb_pct" not in match.contributions
+
+
+def test_missing_stat_penalizes_incomplete_twin() -> None:
+    """An identical season missing a stat ranks below an identical complete one."""
+    z = random_population(50)
+    z[1] = z[0]
+    z[2] = z[0]
+    z[2, col("fg3a_rate")] = np.nan  # e.g. a pre-1980 season
+    engine = SimilarityEngine(make_matrix(z))
+    first, second = engine.find_similar("p0", 2020, n=2)
+    assert (first.player_id, second.player_id) == ("p1", "p2")
+    assert first.score == pytest.approx(100) and second.score < 100
 
 
 def test_unknown_query_raises() -> None:

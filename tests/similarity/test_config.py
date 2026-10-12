@@ -45,7 +45,7 @@ def test_invalid_weights(weights: dict[str, float], message: str) -> None:
 @pytest.mark.parametrize(
     "kwargs",
     [{"metric": "manhattan"}, {"min_shared": 0}, {"pca_components": 0},
-     {"pca_components": 1.5}, {"top_features": -1}],
+     {"pca_components": 1.5}, {"top_features": -1}, {"close_z": 0}],
 )  # fmt: skip
 def test_invalid_config(kwargs: dict[str, object]) -> None:
     with pytest.raises(ValueError):

@@ -53,32 +53,74 @@ def test_euclidean_ranking_matches_sklearn_distances() -> None:
     )
 
 
-@pytest.mark.parametrize("metric", ["euclidean", "cosine"])
-def test_missing_feature_is_ignored_not_zero_filled(metric: str) -> None:
-    """A candidate missing a stat is scored on the shared stats only."""
+def test_missing_stat_counts_as_typical_not_skipped() -> None:
+    """A candidate lacking a stat earns 0 points for it, but it stays in the denominator."""
     X = random_population()
     query, cand = X[0].copy(), X[1].copy()
     cand[2] = np.nan
     mean, var = stats(X)
-    with_gap = masked_scores(cand[None, :], query, EQUAL_W, mean, var, metric)  # type: ignore[arg-type]
+    s = masked_scores(cand[None, :], query, EQUAL_W, mean, var, "euclidean")
+    expected = EQUAL_W * ((query - mean) ** 2 + var)
     keep = np.arange(D) != 2
-    reference = masked_scores(
-        cand[None, keep],
-        query[keep],
-        EQUAL_W[keep],
-        mean[keep],
-        var[keep],
-        metric,  # type: ignore[arg-type]
-    )
-    assert with_gap.score[0] == pytest.approx(reference.score[0])
-    assert with_gap.contributions[0, 2] == 0
-    assert with_gap.shared[0] == pytest.approx(11 / 12)
+    gaps = EQUAL_W[keep] * (cand[keep] - query[keep]) ** 2
+    assert s.score[0] == pytest.approx(100 * (expected[keep] - gaps).sum() / expected.sum())
+    assert s.contributions[0, 2] == 0
+    assert s.shared[0] == pytest.approx(11 / 12)
 
 
-def test_nothing_shared_gives_nan() -> None:
+def test_missing_a_distinctive_stat_costs_more() -> None:
+    """Skipping the query's standout stat (Curry's 3PA rate) costs more than an average one."""
+    X = random_population()
+    mean, var = stats(X)
+    query = np.zeros(D)
+    query[2] = 3.0  # distinctive
+    twin_missing_distinctive = query.copy()
+    twin_missing_distinctive[2] = np.nan
+    twin_missing_average = query.copy()
+    twin_missing_average[5] = np.nan
+    pair = np.vstack([twin_missing_distinctive, twin_missing_average])
+    s = masked_scores(pair, query, EQUAL_W, mean, var, "euclidean")
+    assert s.score[0] < s.score[1] < 100
+
+
+@pytest.mark.parametrize("metric", ["euclidean", "cosine"])
+def test_missing_is_not_zero_filled(metric: str) -> None:
+    X = random_population()
+    mean, var = stats(X)
+    query = X[0]
+    missing, zero_filled = X[1].copy(), X[1].copy()
+    missing[2], zero_filled[2] = np.nan, 0.0
+    s = masked_scores(np.vstack([missing, zero_filled]), query, EQUAL_W, mean, var, metric)  # type: ignore[arg-type]
+    assert s.score[0] != pytest.approx(s.score[1])
+
+
+def test_cosine_missing_stat_lowers_the_score() -> None:
+    X = random_population()
+    mean, var = stats(X)
+    query = X[0]
+    complete = query * 1.0
+    gap = query.copy()
+    gap[4] = np.nan
+    s = masked_scores(np.vstack([complete, gap]), query, EQUAL_W, mean, var, "cosine")
+    assert s.score[0] == pytest.approx(100)
+    assert s.score[1] < 100
+    np.testing.assert_allclose(np.nansum(s.contributions, axis=1), s.score)
+
+
+def test_stats_the_query_lacks_are_ignored() -> None:
+    X = random_population()
+    mean, var = stats(X)
+    query = X[0].copy()
+    query[3] = np.nan  # e.g. a 1975 query without 3PA rate
+    s = masked_scores(X, query, EQUAL_W, mean, var, "euclidean")
+    assert s.score[0] == pytest.approx(100)  # itself, compared on the 11 stats it has
+    assert (s.contributions[:, 3] == 0).all()
+
+
+def test_nothing_shared_scores_zero_and_shares_nothing() -> None:
     X = np.full((1, D), np.nan)
     s = masked_scores(X, np.zeros(D), EQUAL_W, np.zeros(D), np.ones(D), "euclidean")
-    assert np.isnan(s.score[0]) and s.shared[0] == 0
+    assert s.score[0] == 0 and s.shared[0] == 0
 
 
 @pytest.mark.parametrize("metric", ["euclidean", "cosine"])

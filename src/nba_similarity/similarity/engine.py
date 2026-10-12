@@ -33,7 +33,13 @@ class Match:
     season: int
     score: float  # 0-100: 100 = identical, 0 = no closer than a typical player-season
     shared: float  # share of the total feature weight both seasons have
-    top_features: tuple[FeatureContribution, ...]  # most-contributing first
+    # Stats that earned the most points *and* where the two seasons are genuinely alike
+    # (within `close_z` SD), most points first: "both elite passers".
+    similar_traits: tuple[FeatureContribution, ...]
+    # Shared stats where the seasons are more than `close_z` SD apart, biggest gap first.
+    differences: tuple[FeatureContribution, ...]
+    # Points per feature for every stat; they sum to the (unclipped) score.
+    contributions: dict[str, float]
 
 
 @dataclass(frozen=True)
@@ -142,32 +148,41 @@ class SimilarityEngine:
     def _match(self, query: int, row: int, scores: Scores, i: int) -> Match:
         m = self.matrix
         points = scores.contributions[i]
-        ranked = [
-            j
-            for j in np.argsort(-np.nan_to_num(points, nan=-np.inf), kind="stable")
-            if self.weights[j] > 0 and not np.isnan(points[j])
-            and not np.isnan(m.z[query, j]) and not np.isnan(m.z[row, j])
-        ]  # fmt: skip
-        top = tuple(
-            FeatureContribution(
-                feature=m.features[j],
-                label=m.labels[j],
-                category=m.categories[j],
-                points=float(points[j]),
-                query_z=float(m.z[query, j]),
-                match_z=float(m.z[row, j]),
-                query_raw=float(m.raw[query, j]),
-                match_raw=float(m.raw[row, j]),
-            )
-            for j in ranked[: self.config.top_features]
-        )
+        both = ~np.isnan(m.z[query]) & ~np.isnan(m.z[row]) & (self.weights > 0)
+        gap = np.abs(m.z[query] - m.z[row])
+        close = both & (gap <= self.config.close_z) & (points > 0)
+        apart = both & (gap > self.config.close_z)
+
+        by_points = [j for j in np.argsort(-points, kind="stable") if close[j]]
+        weighted_gap = self.weights * np.nan_to_num(gap) ** 2
+        by_gap = [j for j in np.argsort(-weighted_gap, kind="stable") if apart[j]]
+        k = self.config.top_features
         return Match(
             player_id=str(m.player_ids[row]),
             name=str(m.names[row]),
             season=int(m.seasons[row]),
             score=float(np.clip(scores.score[i], 0.0, 100.0)),
             shared=float(scores.shared[i]),
-            top_features=top,
+            similar_traits=tuple(self._contribution(query, row, points, j) for j in by_points[:k]),
+            differences=tuple(self._contribution(query, row, points, j) for j in by_gap[:k]),
+            contributions={
+                m.features[j]: float(points[j]) for j in range(len(points)) if self.weights[j] > 0
+            },
+        )
+
+    def _contribution(
+        self, query: int, row: int, points: np.ndarray, j: int
+    ) -> FeatureContribution:
+        m = self.matrix
+        return FeatureContribution(
+            feature=m.features[j],
+            label=m.labels[j],
+            category=m.categories[j],
+            points=float(points[j]),
+            query_z=float(m.z[query, j]),
+            match_z=float(m.z[row, j]),
+            query_raw=float(m.raw[query, j]),
+            match_raw=float(m.raw[row, j]),
         )
 
 

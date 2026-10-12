@@ -97,11 +97,16 @@ Run with `nba-similar "Nikola Jokic" 2023`. The engine is
   - **Cosine:** `100 × cos` of the weighted vectors.
   - Negative scores are clipped to 0.
 - **Exact explanations:** every score is a sum of per-feature contributions, also under PCA
-  (via the projection P = VᵀV). Each match returns its top contributing features with the
-  query's and match's z and raw values.
-- **Missing values:** without PCA, compare on the shared stats only (distance and baseline
-  both cover only those) and require `min_shared` (default 75%) of the weight. With PCA, a
-  query is compared only with seasons that have all of the query's stats.
+  (via the projection P = VᵀV); `Match.contributions` has them all. For display, each match
+  has `similar_traits` (highest-scoring stats where the seasons are within `close_z` = 1 SD:
+  genuinely alike) and `differences` (shared stats more than 1 SD apart). A stat can earn
+  points while still being a difference (e.g. Harden's DRB% vs Jokić's), so never present
+  raw contribution rank as "alike".
+- **Missing values:** a stat the query has but a candidate lacks counts as *typical*: 0
+  points, but it stays in the score's denominator. That stops pre-1980 seasons from gaining
+  by skipping the query's distinctive stats (e.g. Curry's 3PA rate). No value is filled in.
+  Candidates must also share `min_shared` (default 75%) of the weight. With PCA, a query is
+  compared only with seasons that have all of the query's stats.
 - **Own seasons:** excluded by default (`include_same_player=True` to include them); the
   query row itself is never returned.
 

@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from nba_similarity.similarity.config import SimilarityConfig
-from nba_similarity.similarity.engine import Match, SimilarityEngine
+from nba_similarity.similarity.engine import FeatureContribution, Match, SimilarityEngine
 from nba_similarity.similarity.lookup import PlayerNotFoundError, find_player_id
 
 
@@ -55,16 +55,19 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _stat(c: FeatureContribution) -> str:
+    return f"{c.label} {c.query_raw:.3g} vs {c.match_raw:.3g}"
+
+
 def format_match(rank: int, match: Match) -> str:
     season = f"{match.season - 1}-{str(match.season)[2:]}"
-    traits = "; ".join(
-        f"{c.label} {c.query_raw:.3g} vs {c.match_raw:.3g} (+{c.points:.1f})"
-        if c.points >= 0
-        else f"{c.label} {c.query_raw:.3g} vs {c.match_raw:.3g} ({c.points:.1f})"
-        for c in match.top_features
-    )
     coverage = "" if match.shared >= 0.999 else f" [{match.shared:.0%} of stats]"
-    return f"{rank:>2}. {match.name:<26} {season}  {match.score:5.1f}{coverage}  {traits}"
+    line = f"{rank:>2}. {match.name:<26} {season}  {match.score:5.1f}{coverage}"
+    alike = "; ".join(_stat(c) for c in match.similar_traits) or "-"
+    lines = [line, f"      alike:  {alike}"]
+    if match.differences:
+        lines.append(f"      differ: {'; '.join(_stat(c) for c in match.differences)}")
+    return "\n".join(lines)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

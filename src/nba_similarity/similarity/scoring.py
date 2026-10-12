@@ -14,9 +14,13 @@ Cosine: score = 100 * cos(angle between the weighted vectors). Feature j contrib
 100 * a_j * b_j / (|a| |b|), and the contributions sum to the score. Cosine compares the
 shape of a stat profile rather than its size.
 
-`masked_scores` works on the weighted feature space directly and tolerates missing values:
-each pair is compared on the features both have, and D² and its baseline cover only those,
-so the score is an average over shared features rather than a sum. `projected_scores` works
+`masked_scores` works on the weighted feature space directly and tolerates missing values.
+A stat the query has but a candidate lacks (e.g. 3PA rate before 1979-80) is treated as
+"typical": it earns 0 points, but its baseline stays in the denominator, so a candidate
+can't gain by skipping the query's distinctive stats. Only the score is affected; no value
+is filled in. For cosine, the unknown part of the candidate's vector counts with its
+expected size. Stats the query itself lacks are ignored (they are the same for every
+candidate). `projected_scores` works
 in a PCA subspace (complete data only), using the projection P = VᵀV so that contributions
 still map back onto the original features: D² = Σ_j Δ_j (PΔ)_j.
 """
@@ -50,20 +54,23 @@ def masked_scores(
     `w` are feature weights (summing to 1); `mean` and `var` are the per-feature mean and
     variance of `X`, which set the euclidean baseline (expected distance from `q`).
     """
-    mask = ~np.isnan(X) & ~np.isnan(q)
+    query_has = ~np.isnan(q)
+    mask = ~np.isnan(X) & query_has  # compared directly
+    unknown = np.isnan(X) & query_has  # the query has it, the candidate doesn't
     shared = (mask * w).sum(axis=1) / w.sum()
     with np.errstate(invalid="ignore", divide="ignore"):
         if metric == "euclidean":
             diff = np.where(mask, X - q, 0.0)
             distance = w * diff**2
-            baseline = np.where(mask, w * ((q - mean) ** 2 + var), 0.0)
-            r2 = baseline.sum(axis=1, keepdims=True)
-            contributions = 100 * (baseline - distance) / r2
+            expected = np.where(query_has, w * ((q - mean) ** 2 + var), 0.0)
+            # unknown stats: distance = expected, so they add 0 points but stay in the total
+            contributions = 100 * np.where(mask, expected - distance, 0.0) / expected.sum()
         else:
-            a = np.where(mask, q, 0.0)
+            a = np.where(query_has, q, 0.0)
             b = np.where(mask, X, 0.0)
-            norms = np.sqrt((w * a**2).sum(axis=1) * (w * b**2).sum(axis=1))[:, None]
-            contributions = 100 * w * a * b / norms
+            b_sq = (w * b**2).sum(axis=1) + (unknown * w * (var + mean**2)).sum(axis=1)
+            norms = np.sqrt((w * a**2).sum() * b_sq)[:, None]
+            contributions = 100 * np.where(mask, w * a * b, 0.0) / norms
     contributions = np.where(np.isfinite(contributions), contributions, np.nan)
     return Scores(_row_sums(contributions), contributions, shared)
 

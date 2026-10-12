@@ -51,7 +51,7 @@ def test_cli_prints_ranked_matches(synthetic_db: Path, capsys: pytest.CaptureFix
     out = capsys.readouterr().out
     assert code == 0
     assert out.startswith("Most similar to Player p7 2019-20 (euclidean):")
-    assert len(out.strip().splitlines()) == 4 and " 1. Player p7 " in out  # 2020-21 twin first
+    assert out.count("alike:") == 3 and " 1. Player p7 " in out  # 2020-21 twin first
 
 
 def test_cli_reports_unknown_player(synthetic_db: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -90,7 +90,8 @@ def season_2023() -> SimilarityEngine:
 def test_real_season_jokic_matches_sabonis(season_2023: SimilarityEngine) -> None:
     match = season_2023.find_similar("jokicni01", 2023, n=1)[0]
     assert match.player_id == "sabondo01"
-    assert match.top_features[0].feature == "ast_pct"
+    assert "drb_pct" in [c.feature for c in match.similar_traits]
+    assert "ast_pct" in [c.feature for c in match.differences]  # 46.6 vs 30.4
 
 
 def test_real_season_scorer_weighting(season_2023: SimilarityEngine) -> None:
