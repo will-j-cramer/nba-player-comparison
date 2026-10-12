@@ -28,6 +28,7 @@ def make_matrix(
         labels=tuple(f.label for f in FEATURES),
         z=np.asarray(z, dtype=float),
         raw=np.asarray(z, dtype=float) * 10,
+        in_distance=tuple(f.in_distance for f in FEATURES),  # points per 100 is display-only
     )
 
 

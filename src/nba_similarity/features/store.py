@@ -3,8 +3,8 @@
 The feature tables are derived data, so each build drops and recreates them in a single
 transaction: a failed build leaves the previous tables in place.
 
-- feature_definitions: the features, their categories, labels and basis transform (read by
-  later phases and the UI).
+- feature_definitions: the features, their categories, labels, basis transform and whether
+  they count in the similarity distance (read by later phases and the UI).
 - feature_season_stats: per (season, feature) mean and sd of the basis value that was
   z-scored, coverage, whether it is covered, and raw_mean (league average as observed).
 - player_season_features: one row per qualified player-season with each feature's raw
@@ -49,6 +49,7 @@ CREATE TABLE feature_definitions (
     label     TEXT NOT NULL,
     source    TEXT NOT NULL,
     transform TEXT NOT NULL,
+    in_distance INTEGER NOT NULL,
     ordinal   INTEGER NOT NULL
 );
 
@@ -87,11 +88,19 @@ def write_features(conn: sqlite3.Connection, features: pd.DataFrame, stats: pd.D
         for statement in statements:
             conn.execute(statement)
         conn.executemany(
-            "INSERT INTO feature_definitions VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO feature_definitions VALUES (?, ?, ?, ?, ?, ?, ?)",
             [
-                (f.name, f.category, f.label, f"{f.table}.{f.column}", f.transform, i)
+                (
+                    f.name,
+                    f.category,
+                    f.label,
+                    f"{f.table}.{f.column}",
+                    f.transform,
+                    int(f.in_distance),
+                    i,
+                )
                 for i, f in enumerate(FEATURES)
-            ],
+            ],  # fmt: skip
         )
         _insert(conn, "feature_season_stats", SEASON_STATS_COLUMNS, stats)
         _insert(conn, "player_season_features", FEATURE_ROW_COLUMNS, features)

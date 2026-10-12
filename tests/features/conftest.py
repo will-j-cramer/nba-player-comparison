@@ -13,16 +13,20 @@ from nba_similarity.ingestion.records import (
 from nba_similarity.ingestion.schema import init_db
 from nba_similarity.ingestion.store import write_season
 
-# Stats that did not exist before 1979-80 / 1977-78 are None in early seasons.
-ERA_GAPS = {"fg3a_rate", "usg_pct", "tov_pct"}
+# Stats that did not exist before 1979-80 / 1977-78 are None in early seasons
+# (feature name -> the ingestion column it comes from).
+ERA_GAPS_ADVANCED = {"usg_pct", "tov_pct", "fg3a_rate"}
+ERA_GAPS_PER100 = {"fg3", "fg3a", "fg3_pct", "tov"}
+ERA_GAPS = {"fg3a", "usg_pct", "tov_pct"}  # the features affected
 
 
 def make_player(player_id: str, season: int, mp: int, level: float) -> PlayerSeason:
     early = season < 1980
     advanced = {c: level for c in ADVANCED_COLUMNS}
-    if early:
-        advanced.update(dict.fromkeys(ERA_GAPS, None))
     per100 = {c: level for c in PER100_COLUMNS}
+    if early:
+        advanced.update(dict.fromkeys(ERA_GAPS_ADVANCED, None))
+        per100.update(dict.fromkeys(ERA_GAPS_PER100, None))
     return PlayerSeason(
         player_id=player_id,
         name=f"Player {player_id}",

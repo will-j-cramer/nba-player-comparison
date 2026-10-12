@@ -7,7 +7,7 @@ from nba_similarity.similarity.config import SimilarityConfig
 from nba_similarity.similarity.engine import SimilarityEngine
 from tests.similarity.conftest import NAMES, col, make_matrix, random_population
 
-SCORING = [col(f) for f in ("pts", "usg_pct", "fg3a_rate", "fta_rate")]
+SCORING = [col(f) for f in ("pts", "usg_pct", "fg3a", "fta_rate")]
 DEFENSE = [col(f) for f in ("stl_pct", "blk_pct")]
 
 
@@ -81,9 +81,9 @@ def test_category_weights_change_who_matches() -> None:
 def test_min_shared_excludes_seasons_missing_too_much() -> None:
     z = random_population(50)
     z[1] = z[0]
-    z[1, DEFENSE] = np.nan  # missing 2 of 12 stats (17% of the weight)
+    z[1, DEFENSE] = np.nan  # missing 2 of the 11 distance stats (18% of the weight)
     engine = SimilarityEngine(make_matrix(z))
-    assert engine.find_similar("p0", 2020, n=1)[0].player_id == "p1"  # 83% shared >= 75%
+    assert engine.find_similar("p0", 2020, n=1)[0].player_id == "p1"  # 82% shared >= 70%
     strict = engine.with_config(min_shared=0.9)
     assert strict.find_similar("p0", 2020, n=1)[0].player_id != "p1"
     # with defense weighted 0, the gap no longer counts against p1
@@ -119,10 +119,11 @@ def test_similar_traits_explain_the_match() -> None:
     engine = SimilarityEngine(make_matrix(z), SimilarityConfig(top_features=4))
     match = engine.find_similar("p0", 2020, n=1)[0]
     assert match.player_id == "p1"
-    features = [c.feature for c in match.similar_traits]
+    scored = [c for c in match.similar_traits if c.in_score]
+    features = [c.feature for c in scored]
     assert features[0] == "ast_pct"
     assert "blk_pct" not in features and len(features) == 4
-    points = [c.points for c in match.similar_traits]
+    points = [c.points for c in scored]
     assert points == sorted(points, reverse=True)
     top = match.similar_traits[0]
     assert (top.query_z, top.match_z, top.query_raw) == (3.5, 3.3, 35.0)
@@ -170,13 +171,40 @@ def test_missing_stat_penalizes_incomplete_twin() -> None:
     z = random_population(50)
     z[1] = z[0]
     z[2] = z[0]
-    z[2, col("fg3a_rate")] = np.nan  # e.g. a pre-1980 season
+    z[2, col("fg3a")] = np.nan  # e.g. a pre-1980 season
     engine = SimilarityEngine(make_matrix(z))
     first, second = engine.find_similar("p0", 2020, n=2)
     assert (first.player_id, second.player_id) == ("p1", "p2")
     assert first.score == pytest.approx(100) and second.score < 100
 
 
+def test_display_only_points_never_score_but_explain() -> None:
+    """Points per 100 has zero weight in the distance but still shows as context."""
+    z = random_population(100)
+    z[1] = z[0]
+    z[1, col("pts")] = z[0, col("pts")] + 3.0  # very different scoring output only
+    engine = SimilarityEngine(make_matrix(z), SimilarityConfig(top_features=3))
+    match = engine.find_similar("p0", 2020, n=1)[0]
+    assert match.player_id == "p1" and match.score == pytest.approx(100)
+    assert "pts" not in match.contributions
+    assert [c.feature for c in match.differences] == ["pts"]
+    assert match.differences[0].in_score is False and match.differences[0].points == 0
+
+    z[1, col("pts")] = z[0, col("pts")]  # now alike: listed after the scored traits
+    match = SimilarityEngine(make_matrix(z)).find_similar("p0", 2020, n=1)[0]
+    assert match.similar_traits[-1].feature == "pts"
+    assert [c.in_score for c in match.similar_traits] == [True, True, True, False]
+
+
 def test_unknown_query_raises() -> None:
     with pytest.raises(KeyError, match="not in the feature matrix"):
         engine_with_twins().find_similar("nobody", 2020)
+
+
+def test_pre_1978_seasons_stay_comparable_by_default() -> None:
+    """Seasons lacking 3PA, USG% and TOV% share 8/11 of the weight: above the default."""
+    z = random_population(50)
+    z[1] = z[0]
+    z[1, [col("fg3a"), col("usg_pct"), col("tov_pct")]] = np.nan
+    match = SimilarityEngine(make_matrix(z)).find_similar("p0", 2020, n=1)[0]
+    assert match.player_id == "p1" and match.shared == pytest.approx(8 / 11)

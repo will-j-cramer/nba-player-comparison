@@ -31,6 +31,14 @@ def test_category_weight_multiplies_its_stats() -> None:
     assert w[CATEGORIES.index("defense")] == pytest.approx(2 * w[CATEGORIES.index("scoring")])
 
 
+def test_display_only_features_get_zero_weight() -> None:
+    in_distance = [True] * 12
+    in_distance[0] = False  # points per 100
+    w = feature_weights(CATEGORIES, {}, in_distance)
+    assert w[0] == 0 and w.sum() == pytest.approx(1)
+    np.testing.assert_allclose(w[1:], np.full(11, 1 / 11))
+
+
 def test_zero_weight_drops_a_category() -> None:
     totals = category_totals(feature_weights(CATEGORIES, {"defense": 0}))
     assert totals["defense"] == 0 and totals["scoring"] == pytest.approx(0.4)

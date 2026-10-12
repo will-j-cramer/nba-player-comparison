@@ -61,15 +61,21 @@ Basketball-Reference
 
 ### 2. `features/`
 Run with `nba-features`; definitions live in `definitions.py`.
-- **12 rate stats in 5 categories:** scoring (pts/100, USG%, 3PA rate, FT rate), efficiency
+- **12 rate stats in 5 categories:** scoring (pts/100, USG%, 3PA/100, FT rate), efficiency
   (TS%, FT%), playmaking (AST%, TOV%), rebounding (ORB%, DRB%), defense (STL%, BLK%).
   Composites (PER/BPM/WS/VORP), 3P%/FG% and ORtg/DRtg are deliberately excluded.
+- **3-point volume, not shot mix:** 3PA per 100 possessions replaced 3PA rate (3PA/FGA),
+  which put Curry 2015-16 only +1.1 SD above his league (spot-up role players take a bigger
+  *share* of threes).
+- **Points per 100 is display-only** (`in_distance = False`): kept in the tables and in
+  explanations, but zero weight in the similarity distance, because it is roughly usage ×
+  efficiency and would double-count USG% and TS%. So 11 stats drive the distance.
 - **Minimum minutes:** 500, scaled by schedule length (1998-99: 305, 2011-12: 402,
   2019-20: 433, 2020-21: 439; a season in progress uses games played so far).
 - **Era adjustment:** z-scores within each season, using mean and population SD over
   qualified players only, clipped to ±4. Raw values are stored next to the z-scores.
 - **Transforms before z-scoring** (`transforms.py`; recorded in `feature_definitions`):
-  square root for the right-skewed 3PA rate, FT rate, ORB% and BLK%, so extreme seasons stay
+  square root for the right-skewed 3PA/100, FT rate, ORB% and BLK%, so extreme seasons stay
   distinguishable instead of piling up at the clip. FT% is shrunk toward the season's league
   FT% as if the player took 50 extra league-average attempts (attempts estimated as
   FTA/100 × MP/48), so tiny samples can't look elite. Z-scores use this basis value, but the
@@ -89,7 +95,8 @@ Run with `nba-similar "Nikola Jokic" 2023`. The engine is
 - **Pipeline:** z-scores from `player_season_features` → optional sklearn `StandardScaler` →
   per-feature weights → optional sklearn `PCA` (int components or variance share) →
   euclidean or cosine scores.
-- **Weights:** every stat weighs the same by default (1/12); `category_weights` multiply a
+- **Weights:** every distance stat weighs the same by default (1/11; points per 100 is
+  display-only); `category_weights` multiply a
   category's stats (`--weight scoring=2`, 0 drops it). Do **not** split a category's weight
   over its stats: that gave each stat in a 2-stat category double the weight of a scoring
   stat. Single extreme stats then took over matches in the archetype validation (Chris
@@ -109,8 +116,9 @@ Run with `nba-similar "Nikola Jokic" 2023`. The engine is
   raw contribution rank as "alike".
 - **Missing values:** a stat the query has but a candidate lacks counts as *typical*: 0
   points, but it stays in the score's denominator. That stops pre-1980 seasons from gaining
-  by skipping the query's distinctive stats (e.g. Curry's 3PA rate). No value is filled in.
-  Candidates must also share `min_shared` (default 75%) of the weight. With PCA, a query is
+  by skipping the query's distinctive stats (e.g. Curry's 3-point volume). No value is filled in.
+  Candidates must also share `min_shared` (default 70%: 1973-77 seasons share 8/11) of the
+  weight. With PCA, a query is
   compared only with seasons that have all of the query's stats.
 - **Own seasons:** excluded by default (`include_same_player=True` to include them); the
   query row itself is never returned.

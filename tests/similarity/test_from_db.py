@@ -41,7 +41,7 @@ def test_engine_loads_from_db(synthetic_db: Path) -> None:
     matches = engine.find_similar("p7", 2020, n=5)
     assert all(m.player_id != "p7" for m in matches)
     assert matches[0].player_id in {"p6", "p8"}  # neighbours in the synthetic ladder
-    # pre-1980 seasons (no 3PA rate, USG%, TOV%) share 80% of the weight and stay comparable
+    # pre-1978 seasons (no 3PA, USG%, TOV%) share 8/11 of the weight and stay comparable
     assert any(m.season == 1976 for m in engine.find_similar("p7", 2020, n=45))
 
 
@@ -100,7 +100,7 @@ def test_real_season_curry_and_scorer_weighting(season_2023: SimilarityEngine) -
     for match in engine.find_similar("curryst01", 2023, n=5):
         assert match.contributions["usg_pct"] > 0  # weighting scoring keeps comps high-usage
         row = engine.matrix.row(match.player_id, match.season)
-        assert engine.matrix.raw[row, engine.matrix.features.index("usg_pct")] >= 28
+        assert engine.matrix.raw[row, engine.matrix.features.index("usg_pct")] >= 25  # avg ~19
 
 
 def test_real_season_cosine_and_pca_run(season_2023: SimilarityEngine) -> None:

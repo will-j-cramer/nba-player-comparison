@@ -20,6 +20,7 @@ class FeatureContribution:
     label: str
     category: str
     points: float  # contribution to the match's score (all features sum to the score)
+    in_score: bool  # False for display-only context stats (points are then always 0)
     query_z: float
     match_z: float
     query_raw: float
@@ -34,9 +35,11 @@ class Match:
     score: float  # 0-100: 100 = identical, 0 = no closer than a typical player-season
     shared: float  # share of the total feature weight both seasons have
     # Stats that earned the most points *and* where the two seasons are genuinely alike
-    # (within `close_z` SD), most points first: "both elite passers".
+    # (within `close_z` SD), most points first: "both elite passers". Display-only stats
+    # that are alike follow as context.
     similar_traits: tuple[FeatureContribution, ...]
-    # Shared stats where the seasons are more than `close_z` SD apart, biggest gap first.
+    # Shared stats where the seasons are more than `close_z` SD apart, biggest gap first
+    # (display-only stats included).
     differences: tuple[FeatureContribution, ...]
     # Points per feature for every stat; they sum to the (unclipped) score.
     contributions: dict[str, float]
@@ -62,7 +65,11 @@ class SimilarityEngine:
     def __init__(self, matrix: FeatureMatrix, config: SimilarityConfig | None = None) -> None:
         self.matrix = matrix
         self.config = config or SimilarityConfig()
-        self.weights = feature_weights(matrix.categories, self.config.category_weights)
+        self.weights = feature_weights(
+            matrix.categories, self.config.category_weights, matrix.in_distance
+        )
+        # display-only features (e.g. points per 100) appear in explanations as context
+        self._display_only = ~np.asarray(matrix.in_distance, dtype=bool)
         if self.config.standardize:
             self._x = StandardScaler().fit_transform(matrix.z)  # NaNs are ignored and kept
         else:
@@ -150,23 +157,28 @@ class SimilarityEngine:
     def _match(self, query: int, row: int, scores: Scores, i: int) -> Match:
         m = self.matrix
         points = scores.contributions[i]
-        both = ~np.isnan(m.z[query]) & ~np.isnan(m.z[row]) & (self.weights > 0)
+        shown = (self.weights > 0) | self._display_only
+        both = ~np.isnan(m.z[query]) & ~np.isnan(m.z[row]) & shown
         gap = np.abs(m.z[query] - m.z[row])
-        close = both & (gap <= self.config.close_z) & (points > 0)
+        close = both & (gap <= self.config.close_z)
         apart = both & (gap > self.config.close_z)
 
-        by_points = [j for j in np.argsort(-points, kind="stable") if close[j]]
-        weighted_gap = self.weights * np.nan_to_num(gap) ** 2
-        by_gap = [j for j in np.argsort(-weighted_gap, kind="stable") if apart[j]]
         k = self.config.top_features
+        scored = close & (points > 0) & ~self._display_only
+        by_points = [j for j in np.argsort(-points, kind="stable") if scored[j]][:k]
+        by_points += [j for j in np.flatnonzero(close & self._display_only)]
+        # order differences by squared gap, display-only stats at an average stat's weight
+        gap_weight = np.where(self._display_only, 1 / max(len(points), 1), self.weights)
+        weighted_gap = gap_weight * np.nan_to_num(gap) ** 2
+        by_gap = [j for j in np.argsort(-weighted_gap, kind="stable") if apart[j]][:k]
         return Match(
             player_id=str(m.player_ids[row]),
             name=str(m.names[row]),
             season=int(m.seasons[row]),
             score=float(np.clip(scores.score[i], 0.0, 100.0)),
             shared=float(scores.shared[i]),
-            similar_traits=tuple(self._contribution(query, row, points, j) for j in by_points[:k]),
-            differences=tuple(self._contribution(query, row, points, j) for j in by_gap[:k]),
+            similar_traits=tuple(self._contribution(query, row, points, j) for j in by_points),
+            differences=tuple(self._contribution(query, row, points, j) for j in by_gap),
             contributions={
                 m.features[j]: float(points[j]) for j in range(len(points)) if self.weights[j] > 0
             },
@@ -180,7 +192,8 @@ class SimilarityEngine:
             feature=m.features[j],
             label=m.labels[j],
             category=m.categories[j],
-            points=float(points[j]),
+            points=0.0 if self._display_only[j] else float(points[j]),
+            in_score=not self._display_only[j],
             query_z=float(m.z[query, j]),
             match_z=float(m.z[row, j]),
             query_raw=float(m.raw[query, j]),

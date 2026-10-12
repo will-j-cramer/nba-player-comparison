@@ -17,7 +17,7 @@ def frame(rows: list[dict[str, float | None]]) -> pd.DataFrame:
 
 
 def test_transform_assignments() -> None:
-    assert sorted(SQRT_FEATURES) == ["blk_pct", "fg3a_rate", "fta_rate", "orb_pct"]
+    assert sorted(SQRT_FEATURES) == ["blk_pct", "fg3a", "fta_rate", "orb_pct"]
     assert [f.name for f in FEATURES if f.transform == "shrink"] == ["ft_pct"]
 
 

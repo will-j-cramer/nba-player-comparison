@@ -73,3 +73,24 @@ Proposed but not applied:
 - D: cap extreme-stat amplification, only if still needed.
 - E: correct the script's signatures for Chris Paul's TOV%, Giannis's 3PA rate and
   Gobert's usage.
+
+### Round 2 (after equal per-stat weights + one season per comp player)
+- **Better:** Shaq (Mourning, Robinson, Ewing replaced Mobley and Stanley Roberts) and Giannis
+  (LeBron, Luka, Zion, Malone added).
+- **Unchanged:** Curry (Walter Davis rose to #3). Chris Paul lost Stockton entirely.
+- **Correction:** for candidates with every stat, the ranking depends only on the weighted
+  distance. The query-specific baseline only rescales scores, sets the missing-stat penalty
+  and shapes explanations. The "share of points" figure the first diagnosis relied on came
+  from that baseline, so it overstated the query's extreme stats. Fix D (capping
+  amplification) was withdrawn because it can't change rankings.
+
+Applied, as the owner chose:
+- **B: 3PA per 100 possessions replaces 3PA rate.**
+- **F: Points per 100 is display-only.** Zero distance weight, still shown in alike/differ;
+  it double-counted USG% and TS%, which pushed Stockton out for Chris Paul.
+- **G: validation diagnostics.**
+  - Each category's share of the *distance* (and of the weight) replaced "share of points".
+  - A mean signature gap (in SD) per comp.
+  - My wrong expected traits were corrected (Chris Paul TOV%, Giannis 3PA, Gobert usage).
+- **Side effect handled:** with 11 distance stats, 1973-77 seasons (no 3PA/USG%/TOV%) share
+  only 8/11 = 73% of the weight. `min_shared` went from 75% to 70% so they stay comparable.

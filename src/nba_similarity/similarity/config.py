@@ -30,7 +30,8 @@ class SimilarityConfig:
       (share of variance to keep). With PCA, a query is only compared with seasons that
       have every feature the query has, since PCA cannot handle missing values.
     - min_shared: without PCA, candidates must share at least this share of the total
-      feature weight with the query (pre-1980 seasons lack 3PA rate, USG%, TOV%). Stats a
+      feature weight with the query. 1973-74 to 1976-77 lack 3PA, USG% and TOV%: 8 of the 11
+      distance stats (73%), so the default keeps them comparable with modern seasons. Stats a
       candidate lacks also count as "typical" in its score (see scoring.py).
     - include_same_player: also return the query player's other seasons.
     - distinct_players: return each comp player once, with their best-matching season,
@@ -44,7 +45,7 @@ class SimilarityConfig:
     category_weights: Mapping[str, float] = field(default_factory=dict)
     standardize: bool = True
     pca_components: int | float | None = None
-    min_shared: float = 0.75
+    min_shared: float = 0.70
     include_same_player: bool = False
     distinct_players: bool = True
     top_features: int = 3
@@ -66,10 +67,15 @@ class SimilarityConfig:
             raise ValueError("close_z must be > 0")
 
 
-def feature_weights(categories: Sequence[str], category_weights: Mapping[str, float]) -> np.ndarray:
+def feature_weights(
+    categories: Sequence[str],
+    category_weights: Mapping[str, float],
+    in_distance: Sequence[bool] | None = None,
+) -> np.ndarray:
     """Per-feature weights summing to 1: equal per stat, times its category's multiplier.
 
-    `categories[i]` is the category of feature i.
+    `categories[i]` is the category of feature i; features with `in_distance[i]` False
+    (display-only) get weight 0.
     """
     known = set(categories)
     unknown = set(category_weights) - known
@@ -79,6 +85,8 @@ def feature_weights(categories: Sequence[str], category_weights: Mapping[str, fl
         raise ValueError("category weights must be >= 0")
 
     raw = np.array([category_weights.get(c, 1.0) for c in categories], dtype=float)
+    if in_distance is not None:
+        raw = raw * np.asarray(in_distance, dtype=float)
     if raw.sum() == 0:
         raise ValueError("at least one category needs a positive weight")
     return raw / raw.sum()

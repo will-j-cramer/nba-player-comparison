@@ -95,23 +95,26 @@ def test_transforms_recorded_and_applied(ingested_db: sqlite3.Connection) -> Non
     build_features(ingested_db)
     transforms = dict(ingested_db.execute("SELECT feature, transform FROM feature_definitions"))
     assert transforms == {f.name: f.transform for f in FEATURES}
+    in_distance = dict(ingested_db.execute("SELECT feature, in_distance FROM feature_definitions"))
+    assert in_distance == {f.name: int(f.in_distance) for f in FEATURES}
+    assert in_distance["pts"] == 0
 
-    # z_fg3a_rate is standardized on the sqrt scale; the stored raw value is the observed one
+    # z_fg3a is standardized on the sqrt scale; the stored raw value is the observed one
     raw = [
         r
         for (r,) in ingested_db.execute(
-            "SELECT fg3a_rate FROM player_season_features WHERE season = 2020 ORDER BY player_id"
+            "SELECT fg3a FROM player_season_features WHERE season = 2020 ORDER BY player_id"
         )
     ]
     assert max(raw) == 14.0  # observed value of the top synthetic player, not its sqrt
     mean, sd, raw_mean = ingested_db.execute(
         "SELECT mean, sd, raw_mean FROM feature_season_stats "
-        "WHERE season = 2020 AND feature = 'fg3a_rate'"
+        "WHERE season = 2020 AND feature = 'fg3a'"
     ).fetchone()
     roots = [math.sqrt(v) for v in raw]
     assert mean == pytest.approx(sum(roots) / len(roots))
     assert raw_mean == pytest.approx(sum(raw) / len(raw))
     (z,) = ingested_db.execute(
-        "SELECT z_fg3a_rate FROM player_season_features WHERE season = 2020 AND fg3a_rate = 14.0"
+        "SELECT z_fg3a FROM player_season_features WHERE season = 2020 AND fg3a = 14.0"
     ).fetchone()
     assert z == pytest.approx((math.sqrt(14.0) - mean) / sd)

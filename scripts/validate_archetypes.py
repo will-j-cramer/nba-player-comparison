@@ -7,8 +7,11 @@ For each case it prints:
 - the query's z-score profile (what the engine actually sees),
 - the top-n comps with their alike/differ stats, era and an archetype-fit check:
   how many of the archetype's signature traits the comp shares (same direction, |z| >= 0.75),
-- a summary: average fit, flagged comps, decades of the comps and the share of the score
-  each category supplies, which helps tell feature, normalization and weighting problems apart.
+- a summary: average fit and signature gap, flagged comps, decades of the comps, each
+  category's share of the weight, and its share of the *distance* between the query and its
+  comps. The distance decides the ranking; which categories keep comps apart helps tell
+  feature, normalization and weighting problems apart. (Explanation "points" are not shown
+  here: they are scaled by the query's own extremes and overstate them.)
 
 The signature traits are a human's idea of the archetype, written down so comps can be checked
 against it; they are not used by the engine.
@@ -45,26 +48,25 @@ class Case:
 CASES: tuple[Case, ...] = (
     Case(
         "curryst01", 2016, "Stephen Curry 2015-16", "high-volume, hyper-efficient shooter",
-        (("fg3a_rate", +1), ("ts_pct", +1), ("ft_pct", +1), ("usg_pct", +1), ("pts", +1)),
+        (("fg3a", +1), ("ts_pct", +1), ("ft_pct", +1), ("usg_pct", +1), ("pts", +1)),
     ),
     Case(
         "onealsh01", 2000, "Shaquille O'Neal 1999-00", "dominant low-post center",
         (("usg_pct", +1), ("pts", +1), ("fta_rate", +1), ("orb_pct", +1), ("drb_pct", +1),
-         ("blk_pct", +1), ("ft_pct", -1), ("fg3a_rate", -1)),
+         ("blk_pct", +1), ("ft_pct", -1), ("fg3a", -1)),
     ),
     Case(
         "goberru01", 2022, "Rudy Gobert 2021-22", "rim-protecting, rim-running center",
-        (("blk_pct", +1), ("drb_pct", +1), ("orb_pct", +1), ("ts_pct", +1),
-         ("fg3a_rate", -1), ("usg_pct", -1)),
+        (("blk_pct", +1), ("drb_pct", +1), ("orb_pct", +1), ("ts_pct", +1), ("fg3a", -1)),
     ),
     Case(
         "paulch01", 2008, "Chris Paul 2007-08", "pass-first floor general",
-        (("ast_pct", +1), ("stl_pct", +1), ("tov_pct", -1), ("ft_pct", +1), ("usg_pct", +1)),
+        (("ast_pct", +1), ("stl_pct", +1), ("ft_pct", +1), ("usg_pct", +1)),
     ),
     Case(
         "antetgi01", 2020, "Giannis Antetokounmpo 2019-20", "downhill, rim-attacking forward",
         (("usg_pct", +1), ("pts", +1), ("fta_rate", +1), ("drb_pct", +1), ("ast_pct", +1),
-         ("fg3a_rate", -1), ("ft_pct", -1)),
+         ("ft_pct", -1)),
     ),
 )  # fmt: skip
 
@@ -74,7 +76,8 @@ class CompReview:
     match: Match
     traits_shared: tuple[str, ...]
     traits_missing: tuple[str, ...]  # comp lacks the trait (wrong direction or too mild)
-    traits_unknown: tuple[str, ...]  # comp has no value for the stat (e.g. pre-1980 3PA rate)
+    traits_unknown: tuple[str, ...]  # comp has no value for the stat (e.g. pre-1980 3PA)
+    gap: float  # mean |z(query) - z(comp)| over the signature stats both have, in SD
 
     @property
     def fit(self) -> float:
@@ -96,23 +99,44 @@ def has_trait(z: float, direction: int) -> bool | None:
 def review_comp(engine: SimilarityEngine, case: Case, match: Match) -> CompReview:
     m = engine.matrix
     row = m.row(match.player_id, match.season)
-    shared, missing, unknown = [], [], []
+    query = m.row(case.player_id, case.season)
+    shared, missing, unknown, gaps = [], [], [], []
     for feature, direction in case.signature:
-        verdict = has_trait(float(m.z[row, m.features.index(feature)]), direction)
+        j = m.features.index(feature)
+        verdict = has_trait(float(m.z[row, j]), direction)
         bucket = unknown if verdict is None else shared if verdict else missing
         bucket.append(feature)
-    return CompReview(match, tuple(shared), tuple(missing), tuple(unknown))
+        if verdict is not None and not np.isnan(m.z[query, j]):
+            gaps.append(abs(float(m.z[query, j] - m.z[row, j])))
+    gap = float(np.mean(gaps)) if gaps else float("nan")
+    return CompReview(match, tuple(shared), tuple(missing), tuple(unknown), gap)
 
 
-def category_shares(engine: SimilarityEngine, matches: Sequence[Match]) -> dict[str, float]:
-    """Share of the comps' total points supplied by each category (positive points only)."""
+def weight_shares(engine: SimilarityEngine) -> dict[str, float]:
+    """Each category's share of the distance weight (what the engine is told to care about)."""
     totals: Counter[str] = Counter()
-    categories = dict(zip(engine.matrix.features, engine.matrix.categories, strict=True))
+    for category, w in zip(engine.matrix.categories, engine.weights, strict=True):
+        totals[category] += float(w)
+    return {c: totals[c] for c in dict.fromkeys(engine.matrix.categories)}
+
+
+def distance_shares(
+    engine: SimilarityEngine, query: int, matches: Sequence[Match]
+) -> dict[str, float]:
+    """Each category's share of the weighted squared distance from the query to its comps.
+
+    This is what decides the ranking: a category with a large share is where the comps
+    differ most from the query (stats a comp lacks are left out).
+    """
+    m = engine.matrix
+    totals: Counter[str] = Counter()
     for match in matches:
-        for feature, points in match.contributions.items():
-            totals[categories[feature]] += max(points, 0.0)
+        row = m.row(match.player_id, match.season)
+        gap = np.nan_to_num((m.z[query] - m.z[row]) ** 2)
+        for category, w, g in zip(m.categories, engine.weights, gap, strict=True):
+            totals[category] += float(w * g)
     grand = sum(totals.values()) or 1.0
-    return {c: totals[c] / grand for c in dict.fromkeys(engine.matrix.categories)}
+    return {c: totals[c] / grand for c in dict.fromkeys(m.categories)}
 
 
 def season_label(season: int) -> str:
@@ -154,10 +178,10 @@ def run_case(engine: SimilarityEngine, case: Case, n: int, out=sys.stdout) -> li
         match = r.match
         coverage = "" if match.shared >= 0.999 else f" [{match.shared:.0%} of stats]"
         flag = "  <-- FLAG" if r.flagged else ""
+        known = len(r.traits_shared) + len(r.traits_missing)
         emit(
             f"{rank:>2}. {match.name:<26} {season_label(match.season)}  {match.score:5.1f}"
-            f"{coverage}  fit {len(r.traits_shared)}/{len(r.traits_shared) + len(r.traits_missing)}"
-            f"{flag}"
+            f"{coverage}  fit {len(r.traits_shared)}/{known}, gap {r.gap:.1f} SD{flag}"
         )
         emit(f"      alike:   {'; '.join(_stat(c) for c in match.similar_traits) or '-'}")
         if match.differences:
@@ -175,15 +199,19 @@ def run_case(engine: SimilarityEngine, case: Case, n: int, out=sys.stdout) -> li
         return reviews
     fits = [r.fit for r in reviews]
     decades = Counter(f"{(r.match.season - 1) // 10 * 10}s" for r in reviews)
-    shares = category_shares(engine, [r.match for r in reviews])
+    distance = distance_shares(engine, row, [r.match for r in reviews])
+    weights = weight_shares(engine)
     emit("")
     flagged = sum(r.flagged for r in reviews)
     mean_score = np.mean([r.match.score for r in reviews])
-    emit(f"summary: mean archetype fit {np.mean(fits):.0%}, flagged {flagged}/{len(reviews)}, "
-         f"mean score {mean_score:.1f}")  # fmt: skip
+    mean_gap = np.nanmean([r.gap for r in reviews])
+    emit(
+        f"summary: mean archetype fit {np.mean(fits):.0%}, mean signature gap {mean_gap:.2f} SD, "
+        f"flagged {flagged}/{len(reviews)}, mean score {mean_score:.1f}"
+    )
     emit(f"  comps by decade: {', '.join(f'{d} {c}' for d, c in sorted(decades.items()))}")
-    emit("  share of points by category: "
-         + ", ".join(f"{c} {s:.0%}" for c, s in shares.items()))  # fmt: skip
+    emit("  weight by category:   " + ", ".join(f"{c} {v:.0%}" for c, v in weights.items()))
+    emit("  distance by category: " + ", ".join(f"{c} {v:.0%}" for c, v in distance.items()))
     return reviews
 
 
@@ -228,6 +256,7 @@ def main(argv: Sequence[str] | None = None, cases: Sequence[Case] = CASES) -> in
     if reviewed:
         print("=" * 100)
         print(f"overall: mean archetype fit {np.mean([r.fit for r in reviewed]):.0%}, "
+              f"mean signature gap {np.nanmean([r.gap for r in reviewed]):.2f} SD, "
               f"flagged {sum(r.flagged for r in reviewed)}/{len(reviewed)} comps")  # fmt: skip
     return 0
 

@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from nba_similarity.features.definitions import FEATURES
 from nba_similarity.features.pipeline import build_features
 from nba_similarity.ingestion.schema import init_db
 from nba_similarity.ingestion.store import write_season
@@ -47,8 +48,10 @@ def test_cases_cover_the_requested_players() -> None:
         ("curryst01", 2016), ("onealsh01", 2000), ("goberru01", 2022),
         ("paulch01", 2008), ("antetgi01", 2020),
     ]  # fmt: skip
+    names = {f.name for f in FEATURES}
     for case in va.CASES:
         assert case.signature and all(d in (-1, 1) for _, d in case.signature)
+        assert {f for f, _ in case.signature} <= names
 
 
 def test_review_counts_shared_missing_and_unknown_traits(engine: SimilarityEngine) -> None:
@@ -57,13 +60,20 @@ def test_review_counts_shared_missing_and_unknown_traits(engine: SimilarityEngin
     review = va.review_comp(engine, case, match)
     assert review.traits_shared == ("pts",) and review.traits_missing == ("ast_pct",)
     assert review.fit == 0.5 and review.flagged
+    m = engine.matrix
+    q, r = m.row("p14", 2020), m.row(match.player_id, match.season)
+    expected_gap = np.mean([abs(m.z[q, m.features.index(f)] - m.z[r, m.features.index(f)])
+                            for f in ("pts", "ast_pct")])  # fmt: skip
+    assert review.gap == pytest.approx(expected_gap)
 
 
-def test_category_shares_sum_to_one(engine: SimilarityEngine) -> None:
+def test_weight_and_distance_shares_sum_to_one(engine: SimilarityEngine) -> None:
     matches = engine.find_similar("p7", 2020, n=5)
-    shares = va.category_shares(engine, matches)
-    assert set(shares) == {"scoring", "efficiency", "playmaking", "rebounding", "defense"}
-    assert sum(shares.values()) == pytest.approx(1)
+    weights = va.weight_shares(engine)
+    assert weights["scoring"] == pytest.approx(3 / 11)  # points per 100 is display-only
+    distance = va.distance_shares(engine, engine.matrix.row("p7", 2020), matches)
+    assert set(distance) == {"scoring", "efficiency", "playmaking", "rebounding", "defense"}
+    assert sum(distance.values()) == pytest.approx(1)
 
 
 def test_run_case_prints_comps_and_summary(engine: SimilarityEngine) -> None:
@@ -73,7 +83,8 @@ def test_run_case_prints_comps_and_summary(engine: SimilarityEngine) -> None:
     text = out.getvalue()
     assert len(reviews) == 3
     assert "query z-profile: pts=" in text and "alike:" in text
-    assert "summary: mean archetype fit" in text and "share of points by category" in text
+    assert "summary: mean archetype fit" in text and "distance by category" in text
+    assert "weight by category" in text and "gap " in text
 
 
 def test_missing_query_is_skipped(engine: SimilarityEngine) -> None:

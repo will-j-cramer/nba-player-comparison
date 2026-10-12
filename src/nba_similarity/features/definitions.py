@@ -28,14 +28,18 @@ class FeatureSpec:
     category: str
     label: str  # human-readable, for summaries and explanations
     transform: Transform = "none"
+    # False: kept in the feature table and shown in explanations, but given zero weight in
+    # the similarity distance (points per 100 is ~usage x efficiency, so it would double-count
+    # USG% and TS%).
+    in_distance: bool = True
 
 
 FEATURES: tuple[FeatureSpec, ...] = (
-    FeatureSpec("pts", "per100_stats", "pts", "scoring", "Points per 100 poss"),
+    FeatureSpec("pts", "per100_stats", "pts", "scoring", "Points per 100 poss", in_distance=False),
     FeatureSpec("usg_pct", "advanced_stats", "usg_pct", "scoring", "Usage %"),
-    FeatureSpec(
-        "fg3a_rate", "advanced_stats", "fg3a_rate", "scoring", "3PA rate (3PA/FGA)", "sqrt"
-    ),
+    # 3-point *volume*, not shot mix: 3PA rate (3PA/FGA) put Curry 2015-16 only +1.1 SD above
+    # his league, because many low-usage spot-up shooters take a larger share of threes.
+    FeatureSpec("fg3a", "per100_stats", "fg3a", "scoring", "3PA per 100 poss", "sqrt"),
     FeatureSpec("fta_rate", "advanced_stats", "fta_rate", "scoring", "FT rate (FTA/FGA)", "sqrt"),
     FeatureSpec("ts_pct", "advanced_stats", "ts_pct", "efficiency", "True shooting %"),
     FeatureSpec("ft_pct", "per100_stats", "ft_pct", "efficiency", "Free throw %", "shrink"),
