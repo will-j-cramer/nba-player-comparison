@@ -152,6 +152,7 @@ scripts/make_fixtures.sh         # build parser test fixtures from data/raw
 python scripts/check_ingestion.py  # per-season counts, spot checks, NULL checks
 nba-features                     # build the feature matrix and print its sanity summary
 nba-similar "Nikola Jokic" 2023  # top matches; --metric cosine --pca 0.9 --weight scoring=2
+python scripts/validate_archetypes.py  # archetype check: Curry, Shaq, Gobert, CP3, Giannis
 pytest
 ruff check .
 ruff format .
