@@ -208,3 +208,13 @@ def test_pre_1978_seasons_stay_comparable_by_default() -> None:
     z[1, [col("fg3a"), col("usg_pct"), col("tov_pct")]] = np.nan
     match = SimilarityEngine(make_matrix(z)).find_similar("p0", 2020, n=1)[0]
     assert match.player_id == "p1" and match.shared == pytest.approx(8 / 11)
+
+
+@pytest.mark.parametrize("metric", ["euclidean", "cosine"])
+def test_engine_tolerates_a_stat_missing_everywhere(metric: str) -> None:
+    z = random_population(60)
+    z[:, col("ft_pct")] = np.nan
+    matches = SimilarityEngine(make_matrix(z), SimilarityConfig(metric=metric)).find_similar(
+        "p0", 2020, n=5
+    )
+    assert len(matches) == 5 and all(np.isfinite(m.score) for m in matches)

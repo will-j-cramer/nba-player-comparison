@@ -126,9 +126,22 @@ Run with `nba-similar "Nikola Jokic" 2023`. The engine is
   turn off): each comp player appears once, with their best-matching season.
 
 ### 4. `ui/`
-- Streamlit app at `src/nba_similarity/ui/app.py`: player + season pickers, results table,
-  explanation text per match.
-- Reads only from SQLite. The UI never scrapes or recomputes features.
+Run with `streamlit run src/nba_similarity/ui/app.py` (database from `$NBA_DB`, default
+`data/nba.sqlite`).
+- **Layering:** `view.py` (tables and series built from engine objects) and `charts.py`
+  (Plotly figures) are pure and never import streamlit; `app.py` is only layout and caching.
+  Engine logic stays in `similarity/`. Shared text helpers (`season_label`,
+  `format_contribution`) are in `similarity/explain.py`.
+- **Caching:** `st.cache_resource` holds the feature matrix and one `SimilarityEngine` per
+  settings combination; `st.cache_data` holds search results, player options and league
+  averages. Every key includes the database file's mtime, so re-running `nba-features`
+  refreshes the app without a restart.
+- **Reads only SQLite;** never scrapes or recomputes features.
+- **Comparison view:** verdicts use the engine's `close_z` rule for every stat; points per
+  100 is shown as "context". The radar plots the 11 distance stats as within-season
+  percentiles (Φ(z)), so eras compare as the engine sees them. Missing stats are gaps, and
+  a profile with gaps is drawn without fill so nothing is implied. The colors are slots 1–2
+  of the validated palette, with light/dark steps.
 
 ## Conventions
 
@@ -171,7 +184,7 @@ python scripts/validate_archetypes.py  # archetype check: Curry, Shaq, Gobert, C
 pytest
 ruff check .
 ruff format .
-streamlit run src/nba_similarity/ui/app.py
+streamlit run src/nba_similarity/ui/app.py   # the app (NBA_DB=path to use another database)
 ```
 
 ## Layout

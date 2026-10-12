@@ -153,3 +153,15 @@ def test_reduced_projection_contributions_sum_to_score(metric: str) -> None:
     s = projected_scores(X, X[0], P, np.cov(X, rowvar=False, ddof=0), X.mean(axis=0), metric)  # type: ignore[arg-type]
     np.testing.assert_allclose(s.contributions.sum(axis=1), s.score)
     assert s.score[0] == pytest.approx(100)
+
+
+@pytest.mark.filterwarnings("ignore:Mean of empty slice", "ignore:Degrees of freedom")
+@pytest.mark.parametrize("metric", ["euclidean", "cosine"])
+def test_a_stat_with_no_values_anywhere_is_ignored(metric: str) -> None:
+    """Regression: an all-NaN column (NaN mean/var) must not turn every score into NaN."""
+    X = random_population()
+    X[:, 4] = np.nan
+    mean, var = np.nanmean(X, axis=0), np.nanvar(X, axis=0)  # NaN for column 4
+    s = masked_scores(X, X[0], EQUAL_W, mean, var, metric)  # type: ignore[arg-type]
+    assert np.isfinite(s.score).all()
+    assert s.score[0] == pytest.approx(100)

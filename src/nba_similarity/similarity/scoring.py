@@ -68,7 +68,8 @@ def masked_scores(
         else:
             a = np.where(query_has, q, 0.0)
             b = np.where(mask, X, 0.0)
-            b_sq = (w * b**2).sum(axis=1) + (unknown * w * (var + mean**2)).sum(axis=1)
+            typical = np.where(unknown, w * (var + mean**2), 0.0)  # NaN-safe for empty stats
+            b_sq = (w * b**2).sum(axis=1) + typical.sum(axis=1)
             norms = np.sqrt((w * a**2).sum() * b_sq)[:, None]
             contributions = 100 * np.where(mask, w * a * b, 0.0) / norms
     contributions = np.where(np.isfinite(contributions), contributions, np.nan)

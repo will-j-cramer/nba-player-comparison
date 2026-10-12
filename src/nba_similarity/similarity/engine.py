@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import warnings
 from dataclasses import dataclass, replace
 
 import numpy as np
@@ -70,12 +71,16 @@ class SimilarityEngine:
         )
         # display-only features (e.g. points per 100) appear in explanations as context
         self._display_only = ~np.asarray(matrix.in_distance, dtype=bool)
-        if self.config.standardize:
-            self._x = StandardScaler().fit_transform(matrix.z)  # NaNs are ignored and kept
-        else:
-            self._x = matrix.z.copy()
-        self._mean = np.nanmean(self._x, axis=0)
-        self._var = np.nanvar(self._x, axis=0)
+        # A stat with no values at all (possible in tiny or synthetic databases) simply never
+        # takes part; silence numpy's empty-slice warnings for it.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            if self.config.standardize:
+                self._x = StandardScaler().fit_transform(matrix.z)  # NaNs are ignored and kept
+            else:
+                self._x = matrix.z.copy()
+            self._mean = np.nan_to_num(np.nanmean(self._x, axis=0))
+            self._var = np.nan_to_num(np.nanvar(self._x, axis=0))
         self._pca_cache: dict[tuple[int, ...], _PcaSpace] = {}
 
     @classmethod
