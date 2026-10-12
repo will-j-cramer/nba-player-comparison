@@ -14,22 +14,26 @@ def category_totals(weights: np.ndarray) -> dict[str, float]:
     return totals
 
 
-def test_equal_weights_give_each_category_the_same_total() -> None:
+def test_default_weights_are_equal_per_stat() -> None:
     w = feature_weights(CATEGORIES, {})
-    assert w.sum() == pytest.approx(1)
-    for total in category_totals(w).values():
-        assert total == pytest.approx(0.2)  # 4 scoring stats count no more than 2 defense stats
+    np.testing.assert_allclose(w, np.full(12, 1 / 12))
+    totals = category_totals(w)
+    assert totals["scoring"] == pytest.approx(4 / 12)  # 4 stats
+    assert totals["defense"] == pytest.approx(2 / 12)  # 2 stats
 
 
-def test_category_weight_scales_its_share() -> None:
-    totals = category_totals(feature_weights(CATEGORIES, {"scoring": 2}))
-    assert totals["scoring"] == pytest.approx(2 / 6)
-    assert totals["defense"] == pytest.approx(1 / 6)
+def test_category_weight_multiplies_its_stats() -> None:
+    w = feature_weights(CATEGORIES, {"defense": 2})
+    totals = category_totals(w)
+    assert totals["defense"] == pytest.approx(4 / 14)
+    assert totals["scoring"] == pytest.approx(4 / 14)
+    # every stat in a category gets the multiplier, not a split of it
+    assert w[CATEGORIES.index("defense")] == pytest.approx(2 * w[CATEGORIES.index("scoring")])
 
 
 def test_zero_weight_drops_a_category() -> None:
     totals = category_totals(feature_weights(CATEGORIES, {"defense": 0}))
-    assert totals["defense"] == 0 and totals["scoring"] == pytest.approx(0.25)
+    assert totals["defense"] == 0 and totals["scoring"] == pytest.approx(0.4)
 
 
 @pytest.mark.parametrize(

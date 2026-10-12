@@ -94,10 +94,13 @@ def test_real_season_jokic_matches_sabonis(season_2023: SimilarityEngine) -> Non
     assert "ast_pct" in [c.feature for c in match.differences]  # 46.6 vs 30.4
 
 
-def test_real_season_scorer_weighting(season_2023: SimilarityEngine) -> None:
+def test_real_season_curry_and_scorer_weighting(season_2023: SimilarityEngine) -> None:
+    assert season_2023.find_similar("curryst01", 2023, n=1)[0].player_id == "lillada01"
     engine = season_2023.with_config(category_weights={"scoring": 3})
-    ids = [m.player_id for m in engine.find_similar("curryst01", 2023, n=5)]
-    assert "lillada01" in ids
+    for match in engine.find_similar("curryst01", 2023, n=5):
+        assert match.contributions["usg_pct"] > 0  # weighting scoring keeps comps high-usage
+        row = engine.matrix.row(match.player_id, match.season)
+        assert engine.matrix.raw[row, engine.matrix.features.index("usg_pct")] >= 28
 
 
 def test_real_season_cosine_and_pca_run(season_2023: SimilarityEngine) -> None:

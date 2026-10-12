@@ -17,9 +17,12 @@ class SimilarityConfig:
 
     - metric: "euclidean" (closeness of the stat lines) or "cosine" (same statistical shape,
       regardless of magnitude: a role player can match a star with the same profile).
-    - category_weights: relative weight per category; categories not listed get 1.0, and 0
-      drops a category. Each category's weight is split evenly over its features, so a
-      category counts the same however many stats it has.
+    - category_weights: multiplier per category; categories not listed get 1.0, and 0
+      drops a category. Every stat starts with the same weight (1/12 with all 12 stats), so
+      a category's total share is proportional to its number of stats unless re-weighted.
+      (Splitting each category's weight over its stats was tried first: it gave 2-stat
+      categories double-weight stats, and single extreme stats such as Chris Paul's STL% or
+      Shaq's FT% took over the matches.)
     - standardize: re-standardize each feature over the whole matrix (sklearn StandardScaler)
       before weighting. The stored z-scores are already per-season standardized, so this
       mostly corrects for variance lost to clipping.
@@ -30,6 +33,8 @@ class SimilarityConfig:
       feature weight with the query (pre-1980 seasons lack 3PA rate, USG%, TOV%). Stats a
       candidate lacks also count as "typical" in its score (see scoring.py).
     - include_same_player: also return the query player's other seasons.
+    - distinct_players: return each comp player once, with their best-matching season,
+      so one player can't fill the list (e.g. six Tim Duncan seasons for Shaq).
     - top_features: how many similar traits (and differences) to return per match.
     - close_z: two seasons count as "alike" on a stat when their z-scores are within this
       many SD; further apart, the stat is listed as a difference instead.
@@ -41,6 +46,7 @@ class SimilarityConfig:
     pca_components: int | float | None = None
     min_shared: float = 0.75
     include_same_player: bool = False
+    distinct_players: bool = True
     top_features: int = 3
     close_z: float = 1.0
 
@@ -61,7 +67,7 @@ class SimilarityConfig:
 
 
 def feature_weights(categories: Sequence[str], category_weights: Mapping[str, float]) -> np.ndarray:
-    """Per-feature weights summing to 1, with each category's weight split over its features.
+    """Per-feature weights summing to 1: equal per stat, times its category's multiplier.
 
     `categories[i]` is the category of feature i.
     """
@@ -72,8 +78,7 @@ def feature_weights(categories: Sequence[str], category_weights: Mapping[str, fl
     if any(w < 0 for w in category_weights.values()):
         raise ValueError("category weights must be >= 0")
 
-    counts = {c: categories.count(c) for c in known}
-    raw = np.array([category_weights.get(c, 1.0) / counts[c] for c in categories], dtype=float)
+    raw = np.array([category_weights.get(c, 1.0) for c in categories], dtype=float)
     if raw.sum() == 0:
         raise ValueError("at least one category needs a positive weight")
     return raw / raw.sum()

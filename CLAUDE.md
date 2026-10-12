@@ -87,8 +87,13 @@ Run with `nba-features`; definitions live in `definitions.py`.
 Run with `nba-similar "Nikola Jokic" 2023`. The engine is
 `SimilarityEngine(FeatureMatrix, SimilarityConfig)`: build it once, query it many times.
 - **Pipeline:** z-scores from `player_season_features` → optional sklearn `StandardScaler` →
-  per-feature weights (each category's weight split evenly over its stats; default equal) →
-  optional sklearn `PCA` (int components or variance share) → euclidean or cosine scores.
+  per-feature weights → optional sklearn `PCA` (int components or variance share) →
+  euclidean or cosine scores.
+- **Weights:** every stat weighs the same by default (1/12); `category_weights` multiply a
+  category's stats (`--weight scoring=2`, 0 drops it). Do **not** split a category's weight
+  over its stats: that gave each stat in a 2-stat category double the weight of a scoring
+  stat. Single extreme stats then took over matches in the archetype validation (Chris
+  Paul → Eric Murdock on STL%; Shaq → poor FT shooters).
 - **Score (0–100), `scoring.py`:**
   - **Euclidean:** `100 × (1 − D² / E[D²])`, where E[D²] is the expected distance from
     *this query* to a random player-season. 0 means "no closer than a typical season".
@@ -109,6 +114,8 @@ Run with `nba-similar "Nikola Jokic" 2023`. The engine is
   compared only with seasons that have all of the query's stats.
 - **Own seasons:** excluded by default (`include_same_player=True` to include them); the
   query row itself is never returned.
+- **One season per comp player** by default (`distinct_players`, CLI `--all-seasons` to
+  turn off): each comp player appears once, with their best-matching season.
 
 ### 4. `ui/`
 - Streamlit app at `src/nba_similarity/ui/app.py`: player + season pickers, results table,

@@ -194,6 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--metric", choices=["euclidean", "cosine"], default="euclidean")
     parser.add_argument("--weight", action="append", default=[], metavar="CATEGORY=W")
     parser.add_argument("--pca", type=float, default=None)
+    parser.add_argument("--all-seasons", action="store_true", help="allow repeat comp players")
     return parser
 
 
@@ -207,15 +208,21 @@ def main(argv: Sequence[str] | None = None, cases: Sequence[Case] = CASES) -> in
         category, _, value = item.partition("=")
         weights[category] = float(value)
     pca = None if args.pca is None else (int(args.pca) if args.pca >= 1 else args.pca)
-    config = SimilarityConfig(metric=args.metric, category_weights=weights, pca_components=pca)
+    config = SimilarityConfig(
+        metric=args.metric,
+        category_weights=weights,
+        pca_components=pca,
+        distinct_players=not args.all_seasons,
+    )
     conn = sqlite3.connect(args.db)
     try:
         engine = SimilarityEngine.from_db(conn, config)
     finally:
         conn.close()
 
-    print(f"config: metric={config.metric}, weights={weights or 'equal'}, pca={pca}, "
-          f"own seasons excluded, min_shared={config.min_shared}")  # fmt: skip
+    print(f"config: metric={config.metric}, weights={weights or 'equal per stat'}, pca={pca}, "
+          f"own seasons excluded, one season per comp player={config.distinct_players}, "
+          f"min_shared={config.min_shared}")  # fmt: skip
     all_reviews = [run_case(engine, case, args.n) for case in cases]
     reviewed = [r for reviews in all_reviews for r in reviews]
     if reviewed:

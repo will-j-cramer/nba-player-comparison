@@ -21,6 +21,26 @@ def engine_with_twins(**config: object) -> SimilarityEngine:
     return SimilarityEngine(make_matrix(z, ids, seasons), SimilarityConfig(**config))  # type: ignore[arg-type]
 
 
+def test_each_comp_player_appears_once_by_default() -> None:
+    z = random_population(200)
+    z[1] = z[0] + 0.05
+    z[2] = z[0] + 0.06  # the same comp player, two close seasons
+    z[3] = z[0] + 0.30
+    ids = ["query", "duncan", "duncan", "other"] + [f"p{i}" for i in range(4, 200)]
+    seasons = [2000, 2001, 2002, 2000] + [2000] * 196
+    engine = SimilarityEngine(make_matrix(z, ids, seasons))
+    first, second = engine.find_similar("query", 2000, n=2)
+    assert (first.player_id, first.season) == ("duncan", 2001)  # the best-matching season
+    assert second.player_id == "other"
+    every = engine.with_config(distinct_players=False).find_similar("query", 2000, n=2)
+    assert [(m.player_id, m.season) for m in every] == [("duncan", 2001), ("duncan", 2002)]
+
+
+def test_distinct_own_seasons_collapse_to_the_best_one() -> None:
+    matches = engine_with_twins(include_same_player=True).find_similar("star", 2020, n=5)
+    assert [m.player_id for m in matches].count("star") == 1
+
+
 def test_excludes_own_seasons_by_default() -> None:
     matches = engine_with_twins().find_similar("star", 2020, n=5)
     assert matches[0].player_id == "lookalike"
@@ -61,13 +81,13 @@ def test_category_weights_change_who_matches() -> None:
 def test_min_shared_excludes_seasons_missing_too_much() -> None:
     z = random_population(50)
     z[1] = z[0]
-    z[1, SCORING] = np.nan  # missing 20% of the weight (the whole scoring category)
+    z[1, DEFENSE] = np.nan  # missing 2 of 12 stats (17% of the weight)
     engine = SimilarityEngine(make_matrix(z))
-    assert engine.find_similar("p0", 2020, n=1)[0].player_id == "p1"  # 80% shared >= 75%
+    assert engine.find_similar("p0", 2020, n=1)[0].player_id == "p1"  # 83% shared >= 75%
     strict = engine.with_config(min_shared=0.9)
     assert strict.find_similar("p0", 2020, n=1)[0].player_id != "p1"
-    # with scoring weighted 0, the gap no longer counts against p1
-    unweighted = engine.with_config(min_shared=0.9, category_weights={"scoring": 0})
+    # with defense weighted 0, the gap no longer counts against p1
+    unweighted = engine.with_config(min_shared=0.9, category_weights={"defense": 0})
     assert unweighted.find_similar("p0", 2020, n=1)[0].player_id == "p1"
 
 

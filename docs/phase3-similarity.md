@@ -44,3 +44,32 @@
   with seasons that have all of its stats: modern queries won't match pre-1980 seasons.
   The default (no PCA) compares directly on shared stats and counts the candidate's missing
   ones as typical.
+
+## Archetype validation (`scripts/validate_archetypes.py`)
+First full-database run (equal category weights, every season listed). Mean archetype fit
+was 85%, with 2/50 comps flagged:
+- **Gobert 2022:** excellent (Mutombo, Chandler, Dwight, Whiteside).
+- **Shaq 2000:** the right type, but six Duncan seasons, and FT%-driven picks (Mobley,
+  Stanley Roberts).
+- **Chris Paul 2008:** Stockton, Kidd and Payton, but Eric Murdock was #1 and #2 on STL%.
+  Defense supplied 40% of all points.
+- **Curry 2016:** Jordan 1989 was #1. Only 2/10 comps were high-volume 3-point shooters.
+- **Giannis 2020:** three Duncans with assist rates of 15–19 against his 34.
+
+Diagnosis:
+1. **Weighting (main cause).** Splitting each category's weight gave 2-stat-category stats
+   10% each against 5% for scoring stats. With the query-specific baseline, one extreme 10%
+   stat (STL%, FT%) dominated.
+2. **Stat choice.** 3PA rate measures shot mix, not volume. Curry 2015-16 is only +1.1 SD.
+3. **Presentation.** Repeat seasons of one comp player crowded the list.
+4. **Normalization:** no problem found. Cross-era comps were sensible.
+
+Applied, as the owner chose:
+- Equal weight per stat (category multipliers kept).
+- One season per comp player by default.
+
+Proposed but not applied:
+- B: 3PA per 100 possessions instead of 3PA rate.
+- D: cap extreme-stat amplification, only if still needed.
+- E: correct the script's signatures for Chris Paul's TOV%, Giannis's 3PA rate and
+  Gobert's usage.

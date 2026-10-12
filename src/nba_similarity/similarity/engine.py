@@ -93,8 +93,10 @@ class SimilarityEngine:
             keep &= scores.shared >= self.config.min_shared - 1e-9
 
         candidates = np.flatnonzero(keep)
-        order = candidates[np.argsort(-scores.score[candidates], kind="stable")][:n]
-        return [self._match(query, rows[i], scores, i) for i in order]
+        order = candidates[np.argsort(-scores.score[candidates], kind="stable")]
+        if self.config.distinct_players:
+            order = _first_per_player(order, self.matrix.player_ids[rows[order]])
+        return [self._match(query, rows[i], scores, i) for i in order[:n]]
 
     def _score(self, query: int) -> tuple[np.ndarray, Scores]:
         """Scores for every comparable row; returns (row indices, scores aligned to them)."""
@@ -184,6 +186,12 @@ class SimilarityEngine:
             query_raw=float(m.raw[query, j]),
             match_raw=float(m.raw[row, j]),
         )
+
+
+def _first_per_player(order: np.ndarray, player_ids: np.ndarray) -> np.ndarray:
+    """Keep the first (best-ranked) entry of each player in an already sorted `order`."""
+    _, first = np.unique(player_ids, return_index=True)
+    return order[np.sort(first)]
 
 
 def _empty_scores(d: int) -> Scores:

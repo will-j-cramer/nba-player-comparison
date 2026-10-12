@@ -50,6 +50,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--include-same-player", action="store_true", help="include the player's other seasons"
     )
+    parser.add_argument(
+        "--all-seasons",
+        action="store_true",
+        help="list every matching season of a player (default: each comp player once)",
+    )
     parser.add_argument("--top-features", type=int, default=3)
     parser.add_argument("--db", type=Path, default=Path("data/nba.sqlite"))
     return parser
@@ -82,6 +87,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             standardize=not args.no_standardize,
             pca_components=args.pca,
             include_same_player=args.include_same_player,
+            distinct_players=not args.all_seasons,
             top_features=args.top_features,
         )
         conn = sqlite3.connect(args.db)
