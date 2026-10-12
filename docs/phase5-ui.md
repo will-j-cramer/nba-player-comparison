@@ -2,8 +2,8 @@
 
 ## Status
 - **Implemented:** `ui/view.py`, `ui/charts.py`, `ui/app.py`, and `similarity/explain.py`
-  (shared by CLI and UI). 20 new tests, including headless runs of the real script via
-  `streamlit.testing.v1.AppTest`; 184 tests total.
+  (shared by CLI and UI). 22 new tests, including headless runs of the real script via
+  `streamlit.testing.v1.AppTest`; 183 tests total.
 - **Verified here** against the local database (1973-74 and 2022-23 only) with a real
   `streamlit run` and Playwright screenshots:
   - Jokić 2022-23 → Sabonis / Harden / Luka…;
