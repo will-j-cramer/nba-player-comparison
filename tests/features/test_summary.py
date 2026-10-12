@@ -23,3 +23,4 @@ def test_summary_prints_every_section(ingested_db: sqlite3.Connection) -> None:
         assert header in text
     assert "27 qualified player-seasons of 29" in text
     assert "2019-20: 433" in text  # shortened season threshold is listed
+    assert "blk_pct    defense     sqrt" in text and "ft_pct     efficiency  shrink" in text

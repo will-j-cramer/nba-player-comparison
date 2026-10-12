@@ -48,3 +48,21 @@ def test_jokic_is_an_elite_passer_and_rebounder(conn: sqlite3.Connection) -> Non
         "WHERE player_id = 'jokicni01'"
     ).fetchone()
     assert z_ast > 3 and z_drb > 2 and z_ts > 2
+
+
+def test_ft_pct_basis_damps_small_samples(conn: sqlite3.Connection) -> None:
+    """The top FT% z-scores belong to high-volume shooters, not 10-for-10 seasons."""
+    top = conn.execute(
+        "SELECT player_id FROM player_season_features ORDER BY z_ft_pct DESC LIMIT 5"
+    ).fetchall()
+    assert ("lillada01",) in top
+    (max_z,) = conn.execute("SELECT MAX(z_ft_pct) FROM player_season_features").fetchone()
+    assert max_z < 3
+
+
+def test_sqrt_features_rarely_clip(conn: sqlite3.Connection) -> None:
+    (clipped,) = conn.execute(
+        "SELECT COUNT(*) FROM player_season_features "
+        "WHERE ABS(z_blk_pct) >= 4 OR ABS(z_orb_pct) >= 4 OR ABS(z_fta_rate) >= 4"
+    ).fetchone()
+    assert clipped == 0

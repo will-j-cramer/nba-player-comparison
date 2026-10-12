@@ -87,3 +87,31 @@ def test_reingesting_a_season_after_building_features(ingested_db: sqlite3.Conne
     write_season(ingested_db, 2020, players, is_final=True)
     report = build_features(ingested_db)
     assert report.n_qualified == 12 + 15
+
+
+def test_transforms_recorded_and_applied(ingested_db: sqlite3.Connection) -> None:
+    import math
+
+    build_features(ingested_db)
+    transforms = dict(ingested_db.execute("SELECT feature, transform FROM feature_definitions"))
+    assert transforms == {f.name: f.transform for f in FEATURES}
+
+    # z_fg3a_rate is standardized on the sqrt scale; the stored raw value is the observed one
+    raw = [
+        r
+        for (r,) in ingested_db.execute(
+            "SELECT fg3a_rate FROM player_season_features WHERE season = 2020 ORDER BY player_id"
+        )
+    ]
+    assert max(raw) == 14.0  # observed value of the top synthetic player, not its sqrt
+    mean, sd, raw_mean = ingested_db.execute(
+        "SELECT mean, sd, raw_mean FROM feature_season_stats "
+        "WHERE season = 2020 AND feature = 'fg3a_rate'"
+    ).fetchone()
+    roots = [math.sqrt(v) for v in raw]
+    assert mean == pytest.approx(sum(roots) / len(roots))
+    assert raw_mean == pytest.approx(sum(raw) / len(raw))
+    (z,) = ingested_db.execute(
+        "SELECT z_fg3a_rate FROM player_season_features WHERE season = 2020 AND fg3a_rate = 14.0"
+    ).fetchone()
+    assert z == pytest.approx((math.sqrt(14.0) - mean) / sd)

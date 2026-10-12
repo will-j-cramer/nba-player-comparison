@@ -8,7 +8,19 @@
 - **Change from the plan:** `player_season_features` has no foreign key to
   `player_seasons`. Re-ingesting a season after features exist hit that constraint (a
   regression test covers it), and the table is rebuilt whole anyway.
-- **Pending:** the phase gate on the owner's full 1974–2026 database.
+- **First full run (owner's machine, 2026-10-11):** 15,990 qualified player-seasons, means
+  ≈ 0 per season, gaps only in the 1970s. Two problems:
+  - FT% leaders were 1.000 shooters on a handful of attempts.
+  - 3PA rate (SD down to 0.79, 1979-81 role players at +4) and BLK% (95 values at the
+    clip) piled up at ±4.
+- **Follow-up (the owner chose both fixes):**
+  - FT% is shrunk toward the league average with a 50-attempt prior.
+  - 3PA rate, FT rate, ORB% and BLK% are square-rooted before z-scoring.
+  - Raw columns stay observed; `feature_definitions.transform` and
+    `feature_season_stats.raw_mean` record the basis.
+  - Locally (1974 + 2023): FT% top-5 became Lillard, Herro, Barry, Durant and SGA; clipped
+    BLK%/ORB%/FT rate values went from 4/2/1 to 0/0/0. 85 tests pass.
+- **Pending:** a re-run of `nba-features` on the full database to close the phase gate.
 
 ## Context
 Phase 1 is done and verified: `data/nba.sqlite` holds 22,105 player-seasons (1973-74 → 2025-26) in `player_seasons`, `per100_stats` and `advanced_stats`. Phase 2 turns those into an era-adjusted feature matrix that the Phase 3 similarity engine compares. The user approved all of the recommendations:

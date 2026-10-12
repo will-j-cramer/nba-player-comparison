@@ -29,7 +29,8 @@ def qualify(df: pd.DataFrame, final_seasons: set[int]) -> pd.DataFrame:
         for season, games in max_games.items()
     }
     out = df.assign(min_minutes=df["season"].map(thresholds))
-    return out[out["mp"].fillna(0) >= out["min_minutes"]].reset_index(drop=True)
+    minutes = pd.to_numeric(out["mp"], errors="coerce").fillna(0)
+    return out[minutes >= out["min_minutes"]].reset_index(drop=True)
 
 
 def _int_or_none(value: object) -> int | None:

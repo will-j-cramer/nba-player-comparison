@@ -68,11 +68,17 @@ Run with `nba-features`; definitions live in `definitions.py`.
   2019-20: 433, 2020-21: 439; a season in progress uses games played so far).
 - **Era adjustment:** z-scores within each season, using mean and population SD over
   qualified players only, clipped to ±4. Raw values are stored next to the z-scores.
+- **Transforms before z-scoring** (`transforms.py`; recorded in `feature_definitions`):
+  square root for the right-skewed 3PA rate, FT rate, ORB% and BLK%, so extreme seasons stay
+  distinguishable instead of piling up at the clip. FT% is shrunk toward the season's league
+  FT% as if the player took 50 extra league-average attempts (attempts estimated as
+  FTA/100 × MP/48), so tiny samples can't look elite. Z-scores use this basis value, but the
+  stored raw columns are always the observed stats, which explanations should display.
 - **Missing values stay NULL, never filled.** A stat counts for a season only if ≥ 90% of
   qualified players have it (1973-74 TOV is Seattle-only, so it is dropped that season).
   Era gaps: 3PT stats before 1979-80, USG%/TOV% before 1977-78.
-- **Output tables:** `feature_definitions` (category/label per feature),
-  `feature_season_stats` (per-season mean/sd/coverage), `player_season_features`
+- **Output tables:** `feature_definitions` (category/label/transform per feature),
+  `feature_season_stats` (per-season basis mean/sd, coverage, observed `raw_mean`), `player_season_features`
   (raw + `z_<feature>` + `n_features` per qualified player-season). They are rebuilt whole
   on every run and have no foreign keys into ingestion tables, so re-ingesting is never
   blocked; re-run `nba-features` after `nba-ingest`.

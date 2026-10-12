@@ -47,8 +47,8 @@ def print_feature_summary(conn: sqlite3.Connection, out: TextIO = sys.stdout) ->
     first, last = seasons[0], seasons[-1]
     emit("\n== Features ==")
     emit(
-        f"{'feature':<10} {'category':<11} {'covered seasons':<22} {'z values':>8} "
-        f"{'clipped':>7}  median {season_label(first)} / {season_label(last)}"
+        f"{'feature':<10} {'category':<11} {'transform':<9} {'covered seasons':<22} "
+        f"{'z values':>8} {'clipped':>7}  median {season_label(first)} / {season_label(last)}"
     )
     for f in FEATURES:
         s = stats[(stats["feature"] == f.name) & (stats["covered"] == 1)]
@@ -60,8 +60,8 @@ def print_feature_summary(conn: sqlite3.Connection, out: TextIO = sys.stdout) ->
         med_first = _median(rows, f.name, first)
         med_last = _median(rows, f.name, last)
         emit(
-            f"{f.name:<10} {f.category:<11} {covered:<22} {int(z.notna().sum()):>8} "
-            f"{clipped:>7}  {med_first} / {med_last}"
+            f"{f.name:<10} {f.category:<11} {f.transform:<9} {covered:<22} "
+            f"{int(z.notna().sum()):>8} {clipped:>7}  {med_first} / {med_last}"
         )
 
     emit("\n== Normalization check (per season, covered features; expect mean ~0, sd ~1) ==")
@@ -87,7 +87,8 @@ def print_feature_summary(conn: sqlite3.Connection, out: TextIO = sys.stdout) ->
     emit(f"\n== Top {TOP_N} player-seasons per feature (by z-score) ==")
     for f in FEATURES:
         col = z_column(f.name)
-        top = rows.dropna(subset=[col]).nlargest(TOP_N, col)
+        # ties at the clip are broken by the raw value, so the most extreme seasons show first
+        top = rows.dropna(subset=[col]).sort_values([col, f.name], ascending=False).head(TOP_N)
         emit(f"{f.label} ({f.name}):")
         for r in top.itertuples():
             emit(

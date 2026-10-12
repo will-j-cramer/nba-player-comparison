@@ -3,10 +3,13 @@
 The feature tables are derived data, so each build drops and recreates them in a single
 transaction: a failed build leaves the previous tables in place.
 
-- feature_definitions: the features, their categories and labels (read by later phases/UI).
-- feature_season_stats: per (season, feature) mean, sd, coverage and whether it is covered.
-- player_season_features: one row per qualified player-season with each feature's raw value
-  and its clipped z-score (z_<feature>, NULL when missing or not covered that season).
+- feature_definitions: the features, their categories, labels and basis transform (read by
+  later phases and the UI).
+- feature_season_stats: per (season, feature) mean and sd of the basis value that was
+  z-scored, coverage, whether it is covered, and raw_mean (league average as observed).
+- player_season_features: one row per qualified player-season with each feature's raw
+  (observed) value and its clipped z-score (z_<feature>, NULL when missing or not covered
+  that season).
   It deliberately has no foreign key to player_seasons: ingestion rewrites seasons (e.g. the
   one in progress) after features exist, and the features are rebuilt afterwards anyway.
 """
@@ -41,11 +44,12 @@ DROP TABLE IF EXISTS feature_season_stats;
 DROP TABLE IF EXISTS feature_definitions;
 
 CREATE TABLE feature_definitions (
-    feature  TEXT PRIMARY KEY,
-    category TEXT NOT NULL,
-    label    TEXT NOT NULL,
-    source   TEXT NOT NULL,
-    ordinal  INTEGER NOT NULL
+    feature   TEXT PRIMARY KEY,
+    category  TEXT NOT NULL,
+    label     TEXT NOT NULL,
+    source    TEXT NOT NULL,
+    transform TEXT NOT NULL,
+    ordinal   INTEGER NOT NULL
 );
 
 CREATE TABLE feature_season_stats (
@@ -56,6 +60,7 @@ CREATE TABLE feature_season_stats (
     sd       REAL,
     coverage REAL NOT NULL,
     covered  INTEGER NOT NULL,
+    raw_mean REAL,
     PRIMARY KEY (season, feature)
 );
 
@@ -82,9 +87,9 @@ def write_features(conn: sqlite3.Connection, features: pd.DataFrame, stats: pd.D
         for statement in statements:
             conn.execute(statement)
         conn.executemany(
-            "INSERT INTO feature_definitions VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO feature_definitions VALUES (?, ?, ?, ?, ?, ?)",
             [
-                (f.name, f.category, f.label, f"{f.table}.{f.column}", i)
+                (f.name, f.category, f.label, f"{f.table}.{f.column}", f.transform, i)
                 for i, f in enumerate(FEATURES)
             ],
         )
