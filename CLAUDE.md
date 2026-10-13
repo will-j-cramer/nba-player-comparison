@@ -29,7 +29,8 @@ Scraping etiquette (non-negotiable):
 
 ## Architecture
 
-Four phases, each its own package under `src/nba_similarity/`:
+Four phases, each its own package under `src/nba_similarity/`, plus `mapping/` for the app's
+map page:
 
 ```
 Basketball-Reference
@@ -40,8 +41,10 @@ Basketball-Reference
  features/    ──►  SQLite feature tables (cleaned, era-adjusted, normalized)
         ▼
  similarity/  ──►  top-N matches + per-feature contribution breakdowns
+        │
+        ├──► mapping/  ──►  SQLite map table (precomputed 2D UMAP positions)
         ▼
- ui/          ──►  Streamlit app (read-only over SQLite)
+ ui/          ──►  Streamlit app, Search + Map pages (read-only over SQLite)
 ```
 
 ### 1. `ingestion/`
@@ -128,20 +131,50 @@ Run with `nba-similar "Nikola Jokic" 2023`. The engine is
 ### 4. `ui/`
 Run with `nba-app` (`ui/launch.py`: `python -m streamlit run` with this package's Python),
 database from `$NBA_DB`, default `data/nba.sqlite`.
+- **Pages:** `app.py` is the entry point. It draws the shared query sidebar (`sidebar.py`;
+  the same widget keys on every page, so the selection survives page switches) and runs
+  `st.navigation` over `search_page.py` and `map_page.py`.
 - **Layering:** `view.py` (tables and series built from engine objects) and `charts.py`
-  (Plotly figures) are pure and never import streamlit; `app.py` is only layout and caching.
-  Engine logic stays in `similarity/`. Shared text helpers (`season_label`,
+  (Plotly figures) are pure and never import streamlit; the page scripts are only layout,
+  and the cached loaders live in `cache.py`. Engine logic stays in `similarity/` and map
+  computation in `mapping/`. Shared text helpers (`season_label`,
   `format_contribution`) are in `similarity/explain.py`.
 - **Caching:** `st.cache_resource` holds the feature matrix and one `SimilarityEngine` per
-  settings combination; `st.cache_data` holds search results, player options and league
-  averages. Every key includes the database file's mtime, so re-running `nba-features`
-  refreshes the app without a restart.
-- **Reads only SQLite;** never scrapes or recomputes features.
+  settings combination; `st.cache_data` holds search results, player options, league
+  averages, the map and k-means labels per k. Every key includes the database file's mtime,
+  so re-running `nba-features` or `nba-map` refreshes the app without a restart.
+- **Reads only SQLite;** never scrapes, recomputes features or builds the map.
 - **Comparison view:** verdicts use the engine's `close_z` rule for every stat; points per
   100 is shown as "context". The radar plots the 11 distance stats as within-season
   percentiles (Φ(z)), so eras compare as the engine sees them. Missing stats are gaps, and
   a profile with gaps is drawn without fill so nothing is implied. The colors are slots 1–2
   of the validated palette, with light/dark steps.
+- **Map page:** points are colored either by a stat's within-season percentile (single-hue
+  blue ramp; seasons lacking the stat are gray "no data") or by k-means cluster (k 2–9).
+  Only the first 3 palette slots pass the all-pairs check a scatter needs, so clusters 4–9
+  reuse them with a second and third marker shape, and every cluster has a numbered label at
+  its centroid and a name in the legend. The query is an ink star with its label; comps are
+  ink rings numbered by rank, with a names key under the map, and label sides are chosen
+  greedily so they don't overlap. All other points are dimmed. Highlights follow the
+  sidebar settings, but positions are fixed (default weights), and the page says so.
+
+### 5. `mapping/`
+Run with `nba-map` after `nba-features` (about 1–2 minutes for ~16k seasons, including the
+numba compile on first run).
+- **Same distance as the engine:** UMAP runs on the engine's standardized z-matrix
+  (`SimilarityEngine.standardized()`) with a custom numba metric (`metric.py`): the weighted
+  euclidean distance with default weights (points per 100 has weight 0), where a stat only
+  one season has counts as *typical*, `w·(z² + 1)` (`w·2` if neither has it). Nothing is
+  filled in. UMAP rejects NaN, so missing values are passed as a sentinel (−1e30) that the
+  metric recognises.
+- **Stored in SQLite** (`store.py`): `player_season_map (player_id, season, x, y)` and
+  `map_metadata (built_at, n_neighbors, min_dist, seed, features_signature)`, rebuilt whole.
+  `features_signature` hashes the feature table's z-scores; when it no longer matches, the
+  map page warns that the map is out of date.
+- **Deterministic:** fixed seed (42) with n_neighbors 15 and min_dist 0.1 (CLI flags).
+- **Clusters** (`cluster.py`): k-means on the 2D positions at view time (cheap, so k is a
+  slider and clusters match the visual groups), numbered by size and named by their two most
+  extreme mean z-scores among the distance stats ("high AST%, high USG%").
 
 ## Conventions
 
@@ -174,7 +207,7 @@ Do not start a downstream phase on top of unverified upstream data.
 
 ```bash
 pip install -r requirements.txt
-pip install -e .                 # provides the nba-ingest command
+pip install -e .                 # provides the nba-* commands
 nba-ingest                       # load 1973-74 → present into data/nba.sqlite (resumable)
 scripts/make_fixtures.sh         # build parser test fixtures from data/raw
 python scripts/check_ingestion.py  # per-season counts, spot checks, NULL checks
@@ -184,6 +217,7 @@ python scripts/validate_archetypes.py  # archetype check: Curry, Shaq, Gobert, C
 pytest
 ruff check .
 ruff format .
+nba-map                          # precompute the 2D map for the app (re-run after nba-features)
 nba-app                          # the app (NBA_DB=path for another database; extra args go to streamlit)
 ```
 
@@ -199,7 +233,8 @@ src/nba_similarity/
   ingestion/     # scraping, caching, parsing, raw SQLite writes
   features/      # cleaning, era adjustment, normalization
   similarity/    # distance computation, top-N, explanations
-  ui/            # Streamlit app
+  mapping/       # 2D UMAP map (precomputed), k-means clusters
+  ui/            # Streamlit app (Search and Map pages)
 tests/           # mirrors src/nba_similarity/; fixtures/ holds saved HTML
 data/raw/        # cached HTML (gitignored)
 data/processed/  # derived artifacts (gitignored)

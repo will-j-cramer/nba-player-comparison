@@ -16,7 +16,7 @@ import pandas as pd
 
 from nba_similarity.similarity.data import FeatureMatrix
 from nba_similarity.similarity.engine import Match
-from nba_similarity.similarity.explain import format_contribution, season_label
+from nba_similarity.similarity.explain import format_contribution, format_value, season_label
 
 LeagueAverages = dict[tuple[int, str], float]
 
@@ -165,3 +165,108 @@ def load_league_averages(conn: sqlite3.Connection) -> LeagueAverages:
 
 def _num(value: float) -> float | None:
     return None if np.isnan(value) else float(value)
+
+
+# ---------------------------------------------------------------- map page
+
+# Stats shown when hovering a point on the map (observed values).
+MAP_HOVER_FEATURES = ("pts", "usg_pct", "ts_pct", "ast_pct", "drb_pct", "fg3a")
+
+
+@dataclass(frozen=True)
+class MapLayout:
+    xy: np.ndarray  # (n, 2) aligned to the feature matrix rows; NaN = no position on the map
+    built_at: str
+    stale: bool  # the features changed since `nba-map` ran
+
+
+def align_map(
+    matrix: FeatureMatrix, player_ids: np.ndarray, seasons: np.ndarray, xy: np.ndarray
+) -> np.ndarray:
+    """Stored map coordinates in feature-matrix row order (NaN for seasons not on the map)."""
+    position = {
+        (str(p), int(s)): i for i, (p, s) in enumerate(zip(player_ids, seasons, strict=True))
+    }
+    out = np.full((len(matrix.player_ids), 2), np.nan)
+    for row, key in enumerate(
+        zip(matrix.player_ids.astype(str), matrix.seasons.astype(int), strict=True)
+    ):
+        i = position.get(key)
+        if i is not None:
+            out[row] = xy[i]
+    return out
+
+
+def map_frame(
+    matrix: FeatureMatrix,
+    xy: np.ndarray,
+    *,
+    query_row: int | None = None,
+    comp_rows: Sequence[int] = (),
+    color_feature: str | None = None,
+    clusters: np.ndarray | None = None,
+    cluster_names: dict[int, str] | None = None,
+) -> pd.DataFrame:
+    """One row per player-season on the map, with its highlight role and hover text.
+
+    role is "query", "comp" (rank = position in the results) or "other". color_pct is the
+    within-season percentile of `color_feature` (NaN when the season lacks it); cluster is
+    -1 when no clustering is given. Seasons without a map position are left out.
+    """
+    n = len(matrix.player_ids)
+    role = np.full(n, "other", dtype=object)
+    rank = np.zeros(n, dtype=int)
+    for i, r in enumerate(comp_rows, start=1):
+        role[r], rank[r] = "comp", i
+    if query_row is not None:
+        role[query_row] = "query"
+    clusters = np.full(n, -1) if clusters is None else np.asarray(clusters)
+    names = cluster_names or {}
+
+    color_pct = np.full(n, np.nan)
+    color_line = [""] * n
+    if color_feature is not None:
+        j = matrix.features.index(color_feature)
+        color_pct = percentile(matrix.z[:, j])
+        label = SHORT_LABELS.get(color_feature, matrix.labels[j])
+        color_line = [
+            f"{label}: no data" if np.isnan(p) else f"{label}: {r:.3g} ({p:.0f}th pct of season)"
+            for r, p in zip(matrix.raw[:, j], color_pct, strict=True)
+        ]
+
+    hover_cols = [matrix.features.index(f) for f in MAP_HOVER_FEATURES if f in matrix.features]
+    hover = []
+    for row in range(n):
+        stats = [
+            f"{SHORT_LABELS.get(matrix.features[j], matrix.labels[j])} "
+            f"{format_value(matrix.raw[row, j])}"
+            for j in hover_cols
+        ]
+        lines = [
+            f"<b>{matrix.names[row]}</b> {season_label(int(matrix.seasons[row]))}",
+            " · ".join(stats[:3]),
+            " · ".join(stats[3:]),
+        ]
+        if color_line[row]:
+            lines.append(color_line[row])
+        if clusters[row] >= 0:
+            lines.append(f"Cluster {clusters[row] + 1}: {names.get(int(clusters[row]), '')}")
+        hover.append("<br>".join(line for line in lines if line))
+
+    frame = pd.DataFrame(
+        {
+            "x": xy[:, 0],
+            "y": xy[:, 1],
+            "label": [
+                short_label(str(m), int(s))
+                for m, s in zip(matrix.names, matrix.seasons, strict=True)
+            ],
+            "role": role,
+            "rank": rank,
+            "cluster": clusters,
+            "cluster_name": [names.get(int(c), "") for c in clusters],
+            "color_pct": color_pct,
+            "hover": hover,
+        }
+    )
+    return frame[np.isfinite(xy).all(axis=1)].reset_index(drop=True)

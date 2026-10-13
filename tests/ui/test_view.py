@@ -121,3 +121,39 @@ def test_load_league_averages() -> None:
     build_features(conn)
     league = view.load_league_averages(conn)
     assert league[(2020, "ast_pct")] == pytest.approx(4.5)  # mean of 0..9
+
+
+def test_align_map_follows_matrix_rows_and_marks_unplaced() -> None:
+    m = make_matrix(np.zeros((3, 12)), ["a", "b", "c"], [2020, 2020, 2021])
+    stored = np.array([[5.0, 6.0], [1.0, 2.0]])
+    xy = view.align_map(m, np.array(["c", "a"]), np.array([2021, 2020]), stored)
+    assert xy[0].tolist() == [1.0, 2.0] and xy[2].tolist() == [5.0, 6.0]
+    assert np.isnan(xy[1]).all()
+
+
+def test_map_frame_roles_colors_and_hover() -> None:
+    z = random_population(6)
+    z[2, col("ast_pct")] = np.nan
+    m = make_matrix(z)
+    xy = np.arange(12, dtype=float).reshape(6, 2)
+    xy[5] = np.nan  # not on the map
+    frame = view.map_frame(m, xy, query_row=0, comp_rows=[3, 1], color_feature="ast_pct")
+    assert len(frame) == 5
+    assert frame["role"].tolist() == ["query", "comp", "other", "comp", "other"]
+    assert frame.loc[3, "rank"] == 1 and frame.loc[1, "rank"] == 2
+    pct = frame["color_pct"]
+    assert np.isnan(pct[2]) and pct.drop(2).between(0, 100).all()
+    assert "AST%: no data" in frame.loc[2, "hover"]
+    assert frame.loc[0, "hover"].startswith("<b>Player p0</b> 2019-20")
+    assert "PTS/100" in frame.loc[0, "hover"] and "3PA/100" in frame.loc[0, "hover"]
+    assert (frame["cluster"] == -1).all()
+
+
+def test_map_frame_cluster_names_in_hover() -> None:
+    m = make_matrix(random_population(4))
+    frame = view.map_frame(
+        m, np.zeros((4, 2)), clusters=np.array([0, 0, 1, 1]), cluster_names={0: "a", 1: "b"}
+    )
+    assert frame["cluster_name"].tolist() == ["a", "a", "b", "b"]
+    assert frame.loc[2, "hover"].endswith("Cluster 2: b")
+    assert set(frame["role"]) == {"other"}

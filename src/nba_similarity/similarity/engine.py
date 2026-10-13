@@ -83,6 +83,10 @@ class SimilarityEngine:
             self._var = np.nan_to_num(np.nanvar(self._x, axis=0))
         self._pca_cache: dict[tuple[int, ...], _PcaSpace] = {}
 
+    def standardized(self) -> tuple[np.ndarray, np.ndarray]:
+        """The (n, d) matrix the engine compares (NaN = missing) and its feature weights."""
+        return self._x.copy(), self.weights.copy()
+
     @classmethod
     def from_db(
         cls, conn: sqlite3.Connection, config: SimilarityConfig | None = None

@@ -12,6 +12,9 @@ lxml>=5.0
 streamlit>=1.35
 plotly>=5.20
 
+# Map (Phase 6)
+umap-learn>=0.5.7
+
 # Dev / test
 pytest>=8.0
 ruff>=0.5
