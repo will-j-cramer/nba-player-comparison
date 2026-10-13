@@ -25,6 +25,9 @@ def encode_missing(x: np.ndarray) -> np.ndarray:
 
 @numba.njit(fastmath=True)
 def typical_distance(x: np.ndarray, y: np.ndarray, w: np.ndarray) -> float:
+    """The engine's weighted euclidean distance between two standardized rows, with missing
+    values (MISSING) counted as typical; see the module docstring.
+    """
     d = 0.0
     for j in range(x.shape[0]):
         if w[j] == 0.0:
@@ -42,18 +45,3 @@ def typical_distance(x: np.ndarray, y: np.ndarray, w: np.ndarray) -> float:
         else:
             d += w[j] * (a * a + 1.0)
     return np.sqrt(d)
-
-
-def typical_distance_reference(x: np.ndarray, y: np.ndarray, w: np.ndarray) -> float:
-    """Plain numpy version (NaN = missing), used to test the numba metric."""
-    both = ~np.isnan(x) & ~np.isnan(y)
-    only_x = ~np.isnan(x) & np.isnan(y)
-    only_y = np.isnan(x) & ~np.isnan(y)
-    neither = np.isnan(x) & np.isnan(y)
-    d = (
-        np.sum(w[both] * (x[both] - y[both]) ** 2)
-        + np.sum(w[only_x] * (x[only_x] ** 2 + 1))
-        + np.sum(w[only_y] * (y[only_y] ** 2 + 1))
-        + np.sum(w[neither] * 2)
-    )
-    return float(np.sqrt(d))

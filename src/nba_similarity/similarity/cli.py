@@ -8,13 +8,15 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from nba_similarity.paths import default_db
 from nba_similarity.similarity.config import SimilarityConfig
 from nba_similarity.similarity.engine import Match, SimilarityEngine
 from nba_similarity.similarity.explain import format_contribution, season_label
 from nba_similarity.similarity.lookup import PlayerNotFoundError, find_player_id
 
 
-def _weights(items: Sequence[str]) -> dict[str, float]:
+def parse_weights(items: Sequence[str]) -> dict[str, float]:
+    """["scoring=2", "defense=0"] -> {"scoring": 2.0, "defense": 0.0}."""
     weights = {}
     for item in items:
         category, sep, value = item.partition("=")
@@ -24,12 +26,14 @@ def _weights(items: Sequence[str]) -> dict[str, float]:
     return weights
 
 
-def _pca(value: str) -> int | float:
+def parse_pca(value: str) -> int | float:
+    """PCA setting: a whole number >= 1 is a component count, a value in (0, 1) a variance share."""
     number = float(value)
     return int(number) if number >= 1 else number
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Command-line options."""
     parser = argparse.ArgumentParser(
         prog="nba-similar", description="Find the most similar player-seasons in NBA history."
     )
@@ -45,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="category weight, repeatable (e.g. --weight scoring=2 --weight defense=0)",
     )
     parser.add_argument(
-        "--pca", type=_pca, default=None, help="PCA components (int) or variance share (0-1)"
+        "--pca", type=parse_pca, default=None, help="PCA components (int) or variance share (0-1)"
     )
     parser.add_argument("--no-standardize", action="store_true")
     parser.add_argument(
@@ -57,11 +61,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="list every matching season of a player (default: each comp player once)",
     )
     parser.add_argument("--top-features", type=int, default=3)
-    parser.add_argument("--db", type=Path, default=Path("data/nba.sqlite"))
+    parser.add_argument(
+        "--db",
+        type=Path,
+        default=default_db(),
+        help="SQLite database (default: $NBA_DB or %(default)s)",
+    )
     return parser
 
 
 def format_match(rank: int, match: Match) -> str:
+    """One result as text: rank, name, season, score, then its alike/differ stats."""
     season = season_label(match.season)
     coverage = "" if match.shared >= 0.999 else f" [{match.shared:.0%} of stats]"
     line = f"{rank:>2}. {match.name:<26} {season}  {match.score:5.1f}{coverage}"
@@ -75,6 +85,7 @@ def format_match(rank: int, match: Match) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Print the top matches for one player-season; returns a process exit code."""
     args = build_parser().parse_args(argv)
     if not args.db.exists():
         print(f"{args.db} not found; run nba-ingest and nba-features first", file=sys.stderr)
@@ -82,7 +93,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         config = SimilarityConfig(
             metric=args.metric,
-            category_weights=_weights(args.weight),
+            category_weights=parse_weights(args.weight),
             standardize=not args.no_standardize,
             pca_components=args.pca,
             include_same_player=args.include_same_player,

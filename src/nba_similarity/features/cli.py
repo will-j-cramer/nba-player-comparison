@@ -10,14 +10,21 @@ from pathlib import Path
 
 from nba_similarity.features.pipeline import build_features
 from nba_similarity.features.summary import print_feature_summary
+from nba_similarity.paths import default_db
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Command-line options."""
     parser = argparse.ArgumentParser(
         prog="nba-features",
         description="Build the era-adjusted feature matrix from ingested stats, then summarize it.",
     )
-    parser.add_argument("--db", type=Path, default=Path("data/nba.sqlite"))
+    parser.add_argument(
+        "--db",
+        type=Path,
+        default=default_db(),
+        help="SQLite database (default: $NBA_DB or %(default)s)",
+    )
     parser.add_argument(
         "--summary-only", action="store_true", help="print the summary without rebuilding"
     )
@@ -25,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Build the feature tables and print the summary; returns a process exit code."""
     args = build_parser().parse_args(argv)
     if not args.db.exists():
         print(f"{args.db} not found; run nba-ingest first", file=sys.stderr)

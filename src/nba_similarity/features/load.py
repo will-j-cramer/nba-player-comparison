@@ -8,8 +8,6 @@ import pandas as pd
 
 from nba_similarity.features.definitions import FEATURES
 
-IDENTITY_COLUMNS = ("player_id", "name", "season", "age", "pos", "team", "g", "mp")
-
 # Inputs to transforms that are not features themselves (FT% shrinkage needs attempts).
 HELPER_COLUMNS = {"ft_per100": "ft", "fta_per100": "fta"}
 

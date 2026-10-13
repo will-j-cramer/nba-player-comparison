@@ -18,6 +18,7 @@ from nba_similarity.ingestion.client import (
 from nba_similarity.ingestion.parse import ParseError, parse_page
 from nba_similarity.ingestion.pipeline import FIRST_SEASON, current_season, ingest
 from nba_similarity.ingestion.schema import connect
+from nba_similarity.paths import default_db
 
 logger = logging.getLogger("nba_similarity.ingestion")
 
@@ -32,6 +33,7 @@ def _delay(value: str) -> float:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Command-line options."""
     parser = argparse.ArgumentParser(
         prog="nba-ingest",
         description="Load Basketball-Reference per-100-possession and advanced stats into SQLite.",
@@ -45,7 +47,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--end", type=int, default=None, help="last season end year (default: current season)"
     )
-    parser.add_argument("--db", type=Path, default=Path("data/nba.sqlite"))
+    parser.add_argument(
+        "--db",
+        type=Path,
+        default=default_db(),
+        help="SQLite database (default: $NBA_DB or %(default)s)",
+    )
     parser.add_argument("--raw-dir", type=Path, default=Path("data/raw"))
     parser.add_argument(
         "--force", action="store_true", help="re-download and reload seasons already loaded"
@@ -60,6 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Ingest the requested seasons; returns a process exit code."""
     args = build_parser().parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 

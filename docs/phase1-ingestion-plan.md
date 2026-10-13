@@ -14,7 +14,7 @@
 - The run ended on 2026-27, which hadn't started: B-Ref serves its page without a stats
   table. That case is now reported as unavailable (and not cached) instead of crashing.
 - Accented names were garbled because B-Ref sends no charset (requests fell back to
-  ISO-8859-1). The client now defaults to UTF-8; `scripts/repair_cache_encoding.py`
+  ISO-8859-1). The client now defaults to UTF-8; a one-off script (since removed)
   repaired the 107 cached pages and the database was rebuilt from cache.
 - **Phase gate passed (2026-10-11):** 22,105 player-seasons, 0 garbled names, spot checks
   and NULL checks as above, 53/53 tests passing on the owner's machine with real fixtures.

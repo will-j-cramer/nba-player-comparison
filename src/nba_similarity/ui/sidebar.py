@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
 import streamlit as st
 
+from nba_similarity.paths import default_db
 from nba_similarity.similarity.data import FeatureMatrix
 from nba_similarity.similarity.explain import season_label
 from nba_similarity.ui import cache, view
+from nba_similarity.ui.remote_db import DownloadError, download_path, ensure_db
 
 DEFAULT_PLAYER = "jokicni01"
 _STATE_KEY = "_query"
@@ -18,6 +19,8 @@ _STATE_KEY = "_query"
 
 @dataclass(frozen=True)
 class Query:
+    """Everything the pages need about the current selection and settings."""
+
     db: str
     mtime: float
     matrix: FeatureMatrix
@@ -29,20 +32,47 @@ class Query:
 
     @property
     def row(self) -> int:
+        """The query's row in the feature matrix."""
         return self.matrix.row(self.player.player_id, self.season)
 
     @property
     def label(self) -> str:
+        """Display label, e.g. "Nikola Jokić 2022-23"."""
         return f"{self.player.name} {season_label(self.season)}"
+
+
+@st.cache_resource(show_spinner="Downloading the database…")
+def fetch_db(path: str, url: str | None, token: str | None) -> Path | None:
+    """The downloaded database (see remote_db.download_path), fetched once per process; None
+    without a URL."""
+    if not url:
+        return None
+    return ensure_db(download_path(Path(path), url), url, token)
+
+
+def _secrets() -> tuple[str | None, str | None]:
+    """NBA_DB_URL and NBA_DB_TOKEN from Streamlit secrets (None without a secrets file)."""
+    try:
+        return st.secrets.get("NBA_DB_URL"), st.secrets.get("NBA_DB_TOKEN")
+    except FileNotFoundError:
+        return None, None
 
 
 def render() -> Query:
     """Draw the sidebar and return the query; stops the script if there is no data."""
-    db_path = Path(os.environ.get("NBA_DB", "data/nba.sqlite"))
-    if not db_path.exists():
-        st.error(f"Database not found at `{db_path}`. Run `nba-ingest` and `nba-features` first.")
+    db_path = default_db()
+    try:
+        found = db_path if db_path.exists() else fetch_db(str(db_path), *_secrets())
+    except DownloadError as exc:
+        st.error(f"Could not download the database: {exc}")
         st.stop()
-    db, mtime = str(db_path), db_path.stat().st_mtime
+    if found is None:
+        st.error(
+            f"Database not found at `{db_path}`. Run `nba-ingest` and `nba-features` first, or "
+            "set `NBA_DB_URL` in the app's secrets to download one (see the README)."
+        )
+        st.stop()
+    db, mtime = str(found), found.stat().st_mtime
     try:
         matrix = cache.load_matrix(db, mtime)
     except ValueError as exc:

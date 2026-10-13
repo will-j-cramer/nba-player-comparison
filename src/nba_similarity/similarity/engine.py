@@ -17,6 +17,8 @@ from nba_similarity.similarity.scoring import Scores, masked_scores, projected_s
 
 @dataclass(frozen=True)
 class FeatureContribution:
+    """One stat's part in a match: its points, and both seasons' z-scores and raw values."""
+
     feature: str
     label: str
     category: str
@@ -30,6 +32,8 @@ class FeatureContribution:
 
 @dataclass(frozen=True)
 class Match:
+    """One comp: its score, the share of stats compared, and the per-stat explanation."""
+
     player_id: str
     name: str
     season: int
@@ -91,6 +95,7 @@ class SimilarityEngine:
     def from_db(
         cls, conn: sqlite3.Connection, config: SimilarityConfig | None = None
     ) -> SimilarityEngine:
+        """Load the feature matrix from the database and build an engine over it."""
         return cls(load_feature_matrix(conn), config)
 
     def with_config(self, **changes: object) -> SimilarityEngine:

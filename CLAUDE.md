@@ -130,7 +130,8 @@ Run with `nba-similar "Nikola Jokic" 2023`. The engine is
 
 ### 4. `ui/`
 Run with `nba-app` (`ui/launch.py`: `python -m streamlit run` with this package's Python),
-database from `$NBA_DB`, default `data/nba.sqlite`.
+database from `paths.default_db()` (`$NBA_DB`, default `data/nba.sqlite`; every CLI's `--db`
+uses the same default).
 - **Pages:** `app.py` is the entry point. It draws the shared query sidebar (`sidebar.py`;
   the same widget keys on every page, so the selection survives page switches) and runs
   `st.navigation` over `search_page.py` and `map_page.py`.
@@ -143,7 +144,9 @@ database from `$NBA_DB`, default `data/nba.sqlite`.
   settings combination; `st.cache_data` holds search results, player options, league
   averages, the map and k-means labels per k. Every key includes the database file's mtime,
   so re-running `nba-features` or `nba-map` refreshes the app without a restart.
-- **Reads only SQLite;** never scrapes, recomputes features or builds the map.
+- **Reads only SQLite;** never scrapes, recomputes features or builds the map. The one
+  exception to "local file": when the database is missing and the `NBA_DB_URL` secret is
+  set, `remote_db.py` downloads it once (see Deployment).
 - **Comparison view:** verdicts use the engine's `close_z` rule for every stat; points per
   100 is shown as "context". The radar plots the 11 distance stats as within-season
   percentiles (Φ(z)), so eras compare as the engine sees them. Missing stats are gaps, and
@@ -176,6 +179,22 @@ numba compile on first run).
   slider and clusters match the visual groups), numbered by size and named by their two most
   extreme mean z-scores among the distance stats ("high AST%, high USG%").
 
+## Deployment (Streamlit Community Cloud)
+- The database is never committed: the repo is public and scraped data must not be
+  redistributed. `scripts/export_app_db.py` writes a slim copy holding only the tables the
+  app reads (`players`, the three feature tables, the two map tables) to
+  `data/processed/nba_app.sqlite`; it refuses a missing or stale map. The owner uploads it
+  somewhere private (README: a private GitHub release asset).
+- `ui/remote_db.py` (pure, no streamlit): `ensure_db` streams `NBA_DB_URL` with an optional
+  `Authorization: Bearer NBA_DB_TOKEN` and `Accept: application/octet-stream` (GitHub's
+  asset API needs it), checks the SQLite header, and renames into place atomically. The
+  file is named after a hash of the URL (`download_path`), so a new URL forces a fresh
+  download. `ui/sidebar.py` reads the secrets and caches the download per process.
+- `streamlit_app.py` (repo root, Cloud's default main file) puts `src/` on `sys.path` and
+  calls `ui.app.main()`; `app.py` runs `main()` only under `__main__`.
+- `.streamlit/secrets.example.toml` documents the keys; `.streamlit/secrets.toml` is
+  gitignored.
+
 ## Conventions
 
 - **Python 3.11+.**
@@ -189,6 +208,9 @@ numba compile on first run).
   which are gitignored (scraped data is not redistributed) and built locally with
   `scripts/make_fixtures.sh`; tests needing them skip when they are missing.
 - **ruff** for linting and formatting.
+- **Docstrings** on every public module, class and function (one line is fine).
+- Season labels come from `nba_similarity/seasons.py` (re-exported by `similarity/explain.py`);
+  don't redefine `season_label`.
 
 ## Phase gating
 
@@ -218,6 +240,7 @@ pytest
 ruff check .
 ruff format .
 nba-map                          # precompute the 2D map for the app (re-run after nba-features)
+python scripts/export_app_db.py  # slim app DB for deployment → data/processed/ (never commit)
 nba-app                          # the app (NBA_DB=path for another database; extra args go to streamlit)
 ```
 
@@ -235,7 +258,10 @@ src/nba_similarity/
   similarity/    # distance computation, top-N, explanations
   mapping/       # 2D UMAP map (precomputed), k-means clusters
   ui/            # Streamlit app (Search and Map pages)
+  paths.py       # default database location ($NBA_DB)
+  seasons.py     # season_label
+streamlit_app.py # Streamlit Community Cloud entry point
 tests/           # mirrors src/nba_similarity/; fixtures/ holds saved HTML
 data/raw/        # cached HTML (gitignored)
-data/processed/  # derived artifacts (gitignored)
+data/processed/  # derived artifacts, e.g. the exported app DB (gitignored)
 ```

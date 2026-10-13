@@ -1,3 +1,5 @@
+"""`python -m nba_similarity.similarity` = `nba-similar`."""
+
 import sys
 
 from nba_similarity.similarity.cli import main

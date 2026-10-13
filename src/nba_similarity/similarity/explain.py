@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
+from nba_similarity.seasons import season_label
 from nba_similarity.similarity.engine import FeatureContribution
 
-
-def season_label(season: int) -> str:
-    """Season end year to the usual label: 2023 -> "2022-23"."""
-    return f"{season - 1}-{str(season)[2:]}"
+__all__ = ["format_contribution", "format_value", "season_label"]
 
 
 def format_value(value: float) -> str:
+    """A stat for display: 3 significant digits, "n/a" when missing."""
     return "n/a" if value != value else f"{value:.3g}"  # NaN check without numpy
 
 
 def format_contribution(c: FeatureContribution) -> str:
-    """ "Assist % 46.6 vs 44.4" (query first)."""
+    """One stat of a match as text, query first: "Assist % 46.6 vs 44.4"."""
     return f"{c.label} {format_value(c.query_raw)} vs {format_value(c.match_raw)}"

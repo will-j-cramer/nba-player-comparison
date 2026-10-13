@@ -16,6 +16,7 @@ from nba_similarity.mapping.store import MapParams, features_signature, write_ma
 from tests.features.conftest import make_player
 
 APP = str(Path(__file__).parents[2] / "src" / "nba_similarity" / "ui" / "app.py")
+CLOUD_ENTRY = str(Path(__file__).parents[2] / "streamlit_app.py")
 
 
 @pytest.fixture
@@ -120,3 +121,56 @@ def test_map_page_warns_when_features_changed(db: Path) -> None:
     conn.close()
     at = map_page(AppTest.from_file(APP))
     assert "Re-run `nba-map`" in at.warning[0].value
+
+
+def test_cloud_entry_point_renders_search_page(db: Path) -> None:
+    at = run(AppTest.from_file(CLOUD_ENTRY))
+    assert at.title[0].value == "NBA player-season similarity"
+    assert len(at.dataframe[0].value) == 10
+
+
+def test_missing_database_mentions_download_secret(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("NBA_DB", str(tmp_path / "nope.sqlite"))
+    at = run(AppTest.from_file(APP))
+    assert "NBA_DB_URL" in at.error[0].value
+
+
+def test_database_downloaded_from_secret_url(
+    db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no file on disk, the app fetches NBA_DB_URL once (the HTTP call is faked)."""
+    from nba_similarity.ui import remote_db
+
+    target = tmp_path / "downloaded" / "nba.sqlite"
+    monkeypatch.setenv("NBA_DB", str(target))
+    calls = []
+
+    class Response:
+        status_code = 200
+
+        def __enter__(self) -> Response:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            pass
+
+        def iter_content(self, size: int) -> list[bytes]:
+            return [db.read_bytes()]
+
+    def fake_get(url: str, **kwargs: object) -> Response:
+        calls.append((url, kwargs))
+        return Response()
+
+    monkeypatch.setattr(remote_db.requests, "get", fake_get)
+    at = AppTest.from_file(APP)
+    at.secrets["NBA_DB_URL"] = "https://example.test/nba.sqlite"
+    at.secrets["NBA_DB_TOKEN"] = "secret"
+    at = run(at)
+    from nba_similarity.ui.remote_db import download_path
+
+    assert download_path(target, "https://example.test/nba.sqlite").exists()
+    assert not target.exists() and len(calls) == 1
+    assert calls[0][1]["headers"]["Authorization"] == "Bearer secret"  # type: ignore[index]
+    assert len(at.dataframe[0].value) == 10

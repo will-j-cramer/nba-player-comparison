@@ -25,7 +25,7 @@
 ## Context
 Phase 1 is done and verified: `data/nba.sqlite` holds 22,105 player-seasons (1973-74 → 2025-26) in `player_seasons`, `per100_stats` and `advanced_stats`. Phase 2 turns those into an era-adjusted feature matrix that the Phase 3 similarity engine compares. The user approved all of the recommendations:
 - **12 rate stats in 5 categories:**
-  - scoring: pts/100, usg_pct, fg3a_rate, fta_rate
+  - scoring: pts/100, usg_pct, fg3a_rate, fta_rate (later revised: 3PA per 100 replaced fg3a_rate, and pts/100 became display-only; see CLAUDE.md)
   - efficiency: ts_pct, ft_pct
   - playmaking: ast_pct, tov_pct
   - rebounding: orb_pct, drb_pct

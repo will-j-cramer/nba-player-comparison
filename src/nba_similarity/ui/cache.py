@@ -23,6 +23,7 @@ ConfigKey = tuple[str, tuple[tuple[str, float], ...], bool, bool]
 
 @st.cache_resource(show_spinner="Loading feature matrix…")
 def load_matrix(db_path: str, mtime: float) -> FeatureMatrix:
+    """The feature matrix, loaded once per database version."""
     conn = sqlite3.connect(db_path)
     try:
         return load_feature_matrix(conn)
@@ -32,6 +33,7 @@ def load_matrix(db_path: str, mtime: float) -> FeatureMatrix:
 
 @st.cache_resource(max_entries=32)
 def get_engine(db_path: str, mtime: float, config_key: ConfigKey) -> SimilarityEngine:
+    """One SimilarityEngine per settings combination."""
     metric, weights, include_same_player, distinct_players = config_key
     config = SimilarityConfig(
         metric=metric,  # type: ignore[arg-type]
@@ -46,16 +48,19 @@ def get_engine(db_path: str, mtime: float, config_key: ConfigKey) -> SimilarityE
 def search(
     db_path: str, mtime: float, config_key: ConfigKey, player_id: str, season: int, n: int
 ) -> list[Match]:
+    """Top-n matches for a player-season under the given settings."""
     return get_engine(db_path, mtime, config_key).find_similar(player_id, season, n=n)
 
 
 @st.cache_data(show_spinner=False)
 def player_options(db_path: str, mtime: float) -> list[view.PlayerOption]:
+    """The player dropdown's options."""
     return view.player_options(load_matrix(db_path, mtime))
 
 
 @st.cache_data(show_spinner=False)
 def league_averages(db_path: str, mtime: float) -> view.LeagueAverages:
+    """Observed league average per (season, feature)."""
     conn = sqlite3.connect(db_path)
     try:
         return view.load_league_averages(conn)

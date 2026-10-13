@@ -20,7 +20,7 @@
 | Results table with scores | `st.dataframe` of `view.results_frame`, with Score as a 0–100 progress column |
 | Click a result → side-by-side + radar | row selection (`on_select="rerun"`) → `view.comparison_frame` + `charts.radar_figure` |
 | Fast | cached matrix, engines, searches, options and league averages, keyed by DB mtime |
-| UI separate from engine | only `app.py` imports streamlit; engine untouched apart from a NaN-safety fix |
+| UI separate from engine | `view.py` and `charts.py` never import streamlit (since Phase 6 the layout lives in the page scripts and `cache.py`); engine untouched apart from a NaN-safety fix |
 
 ## Found while building
 - **Engine bug:** a stat missing for *every* row (NaN mean/variance) made every cosine score

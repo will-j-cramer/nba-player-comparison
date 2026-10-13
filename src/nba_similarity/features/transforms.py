@@ -1,7 +1,7 @@
 """Turns raw feature values into the basis values that get z-scored (pure functions).
 
 - "none":   basis = raw value.
-- "sqrt":   basis = sqrt(raw), for right-skewed stats (3PA rate, FT rate, ORB%, BLK%), so the
+- "sqrt":   basis = sqrt(raw), for right-skewed stats (3PA per 100, FT rate, ORB%, BLK%), so the
             most extreme seasons stay distinguishable instead of all hitting the z clip.
 - "shrink": FT% blended with the season's league FT% as if the player had taken
             FT_PRIOR_ATTEMPTS extra league-average attempts (empirical-Bayes style), so a
@@ -46,6 +46,9 @@ def estimated_attempts(per100: pd.Series, mp: pd.Series) -> pd.Series:
 
 
 def shrunk_ft_pct(df: pd.DataFrame, ft_pct: pd.Series) -> pd.Series:
+    """FT% shrunk toward the season's league FT% by FT_PRIOR_ATTEMPTS league-average attempts
+    (attempts estimated from FTA per 100 and minutes); NaN for players with no attempts.
+    """
     mp = pd.to_numeric(df["mp"], errors="coerce")
     fta = estimated_attempts(pd.to_numeric(df["fta_per100"], errors="coerce"), mp)
     ftm = estimated_attempts(pd.to_numeric(df["ft_per100"], errors="coerce"), mp)

@@ -15,7 +15,7 @@ Cosine: score = 100 * cos(angle between the weighted vectors). Feature j contrib
 shape of a stat profile rather than its size.
 
 `masked_scores` works on the weighted feature space directly and tolerates missing values.
-A stat the query has but a candidate lacks (e.g. 3PA rate before 1979-80) is treated as
+A stat the query has but a candidate lacks (e.g. 3PA per 100 before 1979-80) is treated as
 "typical": it earns 0 points, but its baseline stays in the denominator, so a candidate
 can't gain by skipping the query's distinctive stats. Only the score is affected; no value
 is filled in. For cosine, the unknown part of the candidate's vector counts with its
@@ -36,6 +36,8 @@ from nba_similarity.similarity.config import Metric
 
 @dataclass(frozen=True)
 class Scores:
+    """Scores of every candidate against one query, with their per-feature contributions."""
+
     score: np.ndarray  # (n,) unclipped, NaN where no comparison is possible
     contributions: np.ndarray  # (n, d) points per feature; rows sum to `score`
     shared: np.ndarray  # (n,) share of total feature weight both seasons have

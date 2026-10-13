@@ -28,9 +28,6 @@ ADVANCED_COLUMNS: tuple[str, ...] = (
     "obpm", "dbpm", "bpm", "vorp",
 )  # fmt: skip
 
-# Identity fields every parsed row carries, in addition to its page's stat columns.
-IDENTITY_COLUMNS: tuple[str, ...] = ("player_id", "name", "age", "pos", "team", "g", "gs", "mp")
-
 # Team code used for a traded player's combined (whole-season) row.
 COMBINED_TEAM = "TOT"
 
@@ -40,6 +37,8 @@ RawRow = dict[str, str | None]
 
 @dataclass(frozen=True)
 class Stint:
+    """A traded player's games and minutes with one team."""
+
     team: str
     g: int | None
     mp: int | None
@@ -64,4 +63,5 @@ class PlayerSeason:
 
     @property
     def n_teams(self) -> int:
+        """Number of teams the player appeared for that season."""
         return len(self.stints)

@@ -1,6 +1,7 @@
 """View models for the Streamlit app: pure functions from engine objects to tables/series.
 
-Nothing here imports streamlit, so all of it is unit-testable; app.py only lays things out.
+Nothing here imports streamlit, so all of it is unit-testable; the page scripts only lay
+things out.
 """
 
 from __future__ import annotations
@@ -30,6 +31,8 @@ SHORT_LABELS = {
 
 @dataclass(frozen=True)
 class PlayerOption:
+    """One entry in the player dropdown."""
+
     player_id: str
     name: str
     label: str  # shown in the dropdown, e.g. "Nikola Jokić (2016–2026)"
@@ -129,6 +132,8 @@ def comparison_frame(
 
 @dataclass(frozen=True)
 class RadarData:
+    """The radar chart's axes and both profiles."""
+
     labels: tuple[str, ...]
     query_pct: np.ndarray  # within-season percentile, 0-100, NaN = missing
     match_pct: np.ndarray
@@ -175,6 +180,8 @@ MAP_HOVER_FEATURES = ("pts", "usg_pct", "ts_pct", "ast_pct", "drb_pct", "fg3a")
 
 @dataclass(frozen=True)
 class MapLayout:
+    """The stored map, aligned to the feature matrix."""
+
     xy: np.ndarray  # (n, 2) aligned to the feature matrix rows; NaN = no position on the map
     built_at: str
     stale: bool  # the features changed since `nba-map` ran

@@ -28,6 +28,7 @@ _COMBINED_TEAM_RE = re.compile(r"^(TOT|\d+TM)$")
 
 
 def is_combined_team(team: str | None) -> bool:
+    """True for B-Ref's combined row of a traded player (TOT, or 2TM/3TM/... since 2024)."""
     return team is not None and bool(_COMBINED_TEAM_RE.match(team))
 
 
@@ -104,12 +105,14 @@ def collapse_traded(rows: Iterable[RawRow]) -> dict[str, tuple[RawRow, list[RawR
 
 
 def to_int(value: str | None) -> int | None:
+    """Cell text to int ("1,234" -> 1234); None for an empty cell."""
     if value is None or value == "":
         return None
     return int(float(value.replace(",", "")))
 
 
 def to_float(value: str | None) -> float | None:
+    """Cell text to float (".512" -> 0.512); None for an empty cell."""
     if value is None or value == "":
         return None
     return float(value.replace(",", ""))

@@ -1,4 +1,5 @@
-"""Streamlit app: `nba-app` (or `python -m streamlit run src/nba_similarity/ui/app.py`).
+"""Streamlit app: `nba-app` (or `python -m streamlit run src/nba_similarity/ui/app.py`, or
+`streamlit_app.py` at the repository root, which Streamlit Community Cloud runs).
 
 Entry point: draws the shared query sidebar, then runs the selected page (search_page.py or
 map_page.py). Layout and caching only: comparisons come from the similarity engine, tables
@@ -18,6 +19,7 @@ HERE = Path(__file__).parent
 
 
 def main() -> None:
+    """Configure the page, draw the shared sidebar and run the selected page."""
     st.set_page_config(page_title="NBA Player Similarity", page_icon="🏀", layout="wide")
     page = st.navigation(
         [
@@ -30,4 +32,5 @@ def main() -> None:
     page.run()
 
 
-main()
+if __name__ == "__main__":
+    main()

@@ -26,6 +26,8 @@ ParsePage = Callable[[str, Page], list[RawRow]]
 
 @dataclass
 class IngestReport:
+    """What an ingest run did, per season."""
+
     loaded: dict[int, int] = field(default_factory=dict)  # season -> player-season rows
     skipped: list[int] = field(default_factory=list)  # already final in the database
     unavailable: list[int] = field(default_factory=list)  # not started yet (404 or no table)

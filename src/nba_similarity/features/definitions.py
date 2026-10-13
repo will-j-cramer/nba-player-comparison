@@ -17,11 +17,11 @@ from typing import Literal
 Transform = Literal["none", "sqrt", "shrink"]
 """How a raw value becomes the basis that is z-scored (see transforms.py)."""
 
-CATEGORIES: tuple[str, ...] = ("scoring", "efficiency", "playmaking", "rebounding", "defense")
-
 
 @dataclass(frozen=True)
 class FeatureSpec:
+    """One feature: where its raw value comes from, its category and how it is transformed."""
+
     name: str  # column name in player_season_features (z-score column is z_<name>)
     table: str  # ingestion table the raw value comes from
     column: str  # column in that table
@@ -80,8 +80,10 @@ POSS_PER_48 = 100
 
 
 def z_column(feature: str) -> str:
+    """Name of a feature's z-score column: "ast_pct" -> "z_ast_pct"."""
     return f"z_{feature}"
 
 
 def basis_column(feature: str) -> str:
+    """Name of the column holding a feature's transformed (basis) value."""
     return f"basis_{feature}"

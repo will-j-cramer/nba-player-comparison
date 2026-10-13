@@ -20,6 +20,8 @@ import numpy as np
 
 @dataclass(frozen=True)
 class MapParams:
+    """UMAP settings the map was built with."""
+
     n_neighbors: int
     min_dist: float
     seed: int
@@ -27,6 +29,8 @@ class MapParams:
 
 @dataclass(frozen=True)
 class StoredMap:
+    """A map as read back from the database."""
+
     player_ids: np.ndarray
     seasons: np.ndarray
     xy: np.ndarray  # (n, 2)
@@ -59,6 +63,7 @@ def write_map(
     params: MapParams,
     signature: str,
 ) -> None:
+    """Replace the stored map with `xy` for the given player-seasons, in one transaction."""
     with conn:
         if not conn.in_transaction:
             conn.execute("BEGIN")

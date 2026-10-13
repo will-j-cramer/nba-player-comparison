@@ -16,15 +16,22 @@ from nba_similarity.mapping.embed import (
     build_embedding,
 )
 from nba_similarity.mapping.store import MapParams, features_signature, write_map
+from nba_similarity.paths import default_db
 from nba_similarity.similarity.engine import SimilarityEngine
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Command-line options."""
     parser = argparse.ArgumentParser(
         prog="nba-map",
         description="Precompute the 2D UMAP map of all player-seasons (re-run after nba-features).",
     )
-    parser.add_argument("--db", type=Path, default=Path("data/nba.sqlite"))
+    parser.add_argument(
+        "--db",
+        type=Path,
+        default=default_db(),
+        help="SQLite database (default: $NBA_DB or %(default)s)",
+    )
     parser.add_argument("--n-neighbors", type=int, default=DEFAULT_N_NEIGHBORS)
     parser.add_argument("--min-dist", type=float, default=DEFAULT_MIN_DIST)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
@@ -32,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Build and store the map; returns a process exit code."""
     args = build_parser().parse_args(argv)
     if not args.db.exists():
         print(f"{args.db} not found; run nba-ingest and nba-features first", file=sys.stderr)

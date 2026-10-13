@@ -12,6 +12,7 @@ from nba_similarity.ui.theme import theme_type
 
 
 def render(query: sidebar.Query) -> None:
+    """Draw the results table and the comparison for the sidebar's query."""
     st.title("NBA player-season similarity")
     if not query.has_weights:
         st.warning("All category weights are 0; raise at least one to compare players.")
@@ -62,6 +63,7 @@ def render_comparison(
     league: view.LeagueAverages,
     close_z: float,
 ) -> None:
+    """Side-by-side table and radar chart for the query and one match."""
     query_label = f"{player.name} {season_label(season)}"
     match_label = f"{match.name} {season_label(match.season)}"
     st.subheader(f"{query_label} vs {match_label} · score {match.score:.1f}")

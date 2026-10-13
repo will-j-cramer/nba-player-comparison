@@ -11,7 +11,11 @@ Page = Literal["per_poss", "advanced"]
 
 
 class Fetcher(Protocol):
-    def get(self, url: str) -> str: ...
+    """Anything that can GET a page's HTML (PoliteClient, or a fake in tests)."""
+
+    def get(self, url: str) -> str:
+        """Return the body of `url`."""
+        ...
 
 
 def page_url(season: int, page: Page) -> str:
@@ -20,6 +24,7 @@ def page_url(season: int, page: Page) -> str:
 
 
 def cache_path(raw_dir: Path, season: int, page: Page) -> Path:
+    """Where a season page's HTML is cached under `raw_dir`."""
     return raw_dir / f"NBA_{season}_{page}.html"
 
 

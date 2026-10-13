@@ -14,6 +14,7 @@ plotly>=5.20
 
 # Map (Phase 6)
 umap-learn>=0.5.7
+numba>=0.59  # the map's custom distance (also pulled in by umap-learn)
 
 # Dev / test
 pytest>=8.0

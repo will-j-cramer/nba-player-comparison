@@ -79,5 +79,6 @@ def connect(path: str) -> sqlite3.Connection:
 
 
 def init_db(conn: sqlite3.Connection) -> None:
+    """Create the ingestion tables if they don't exist (and enable foreign keys)."""
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(DDL)

@@ -9,12 +9,9 @@ from typing import TextIO
 import pandas as pd
 
 from nba_similarity.features.definitions import FEATURES, MIN_MINUTES, Z_CLIP, z_column
+from nba_similarity.seasons import season_label
 
 TOP_N = 5
-
-
-def season_label(season: int) -> str:
-    return f"{season - 1}-{str(season)[2:]}"
 
 
 def print_feature_summary(conn: sqlite3.Connection, out: TextIO = sys.stdout) -> None:

@@ -29,8 +29,11 @@ from pathlib import Path
 
 import numpy as np
 
+from nba_similarity.paths import default_db
+from nba_similarity.similarity.cli import parse_pca, parse_weights
 from nba_similarity.similarity.config import SimilarityConfig
 from nba_similarity.similarity.engine import Match, SimilarityEngine
+from nba_similarity.similarity.explain import format_contribution, season_label
 
 TRAIT_Z = 0.75  # a comp "has" a trait when its z-score is at least this far in that direction
 FLAG_BELOW = 0.6  # comps sharing fewer than this share of the signature traits are flagged
@@ -38,6 +41,8 @@ FLAG_BELOW = 0.6  # comps sharing fewer than this share of the signature traits 
 
 @dataclass(frozen=True)
 class Case:
+    """One archetype check: a well-known season and the signature traits its comps should share."""
+
     player_id: str
     season: int
     label: str
@@ -73,6 +78,8 @@ CASES: tuple[Case, ...] = (
 
 @dataclass(frozen=True)
 class CompReview:
+    """How well one comp matches its case's archetype."""
+
     match: Match
     traits_shared: tuple[str, ...]
     traits_missing: tuple[str, ...]  # comp lacks the trait (wrong direction or too mild)
@@ -81,11 +88,13 @@ class CompReview:
 
     @property
     def fit(self) -> float:
+        """Share of the signature traits the comp has, among those it has data for."""
         known = len(self.traits_shared) + len(self.traits_missing)
         return len(self.traits_shared) / known if known else 0.0
 
     @property
     def flagged(self) -> bool:
+        """True when the comp shares too few signature traits (below FLAG_BELOW)."""
         return self.fit < FLAG_BELOW
 
 
@@ -97,6 +106,7 @@ def has_trait(z: float, direction: int) -> bool | None:
 
 
 def review_comp(engine: SimilarityEngine, case: Case, match: Match) -> CompReview:
+    """Check one comp against the case's signature traits."""
     m = engine.matrix
     row = m.row(match.player_id, match.season)
     query = m.row(case.player_id, case.season)
@@ -139,15 +149,9 @@ def distance_shares(
     return {c: totals[c] / grand for c in dict.fromkeys(m.categories)}
 
 
-def season_label(season: int) -> str:
-    return f"{season - 1}-{str(season)[2:]}"
-
-
-def _stat(c: object) -> str:
-    return f"{c.label} {c.query_raw:.3g} vs {c.match_raw:.3g}"  # type: ignore[attr-defined]
-
-
 def run_case(engine: SimilarityEngine, case: Case, n: int, out=sys.stdout) -> list[CompReview]:
+    """Print one case's profile, comps and summary; returns the comp reviews."""
+
     def emit(line: str = "") -> None:
         print(line, file=out)
 
@@ -183,9 +187,10 @@ def run_case(engine: SimilarityEngine, case: Case, n: int, out=sys.stdout) -> li
             f"{rank:>2}. {match.name:<26} {season_label(match.season)}  {match.score:5.1f}"
             f"{coverage}  fit {len(r.traits_shared)}/{known}, gap {r.gap:.1f} SD{flag}"
         )
-        emit(f"      alike:   {'; '.join(_stat(c) for c in match.similar_traits) or '-'}")
+        alike = "; ".join(format_contribution(c) for c in match.similar_traits)
+        emit(f"      alike:   {alike or '-'}")
         if match.differences:
-            emit(f"      differ:  {'; '.join(_stat(c) for c in match.differences)}")
+            emit(f"      differ:  {'; '.join(format_contribution(c) for c in match.differences)}")
         if r.traits_missing or r.traits_unknown:
             parts = []
             if r.traits_missing:
@@ -216,26 +221,34 @@ def run_case(engine: SimilarityEngine, case: Case, n: int, out=sys.stdout) -> li
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Command-line options."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--db", type=Path, default=Path("data/nba.sqlite"))
+    parser.add_argument(
+        "--db",
+        type=Path,
+        default=default_db(),
+        help="SQLite database (default: $NBA_DB or %(default)s)",
+    )
     parser.add_argument("-n", type=int, default=10)
     parser.add_argument("--metric", choices=["euclidean", "cosine"], default="euclidean")
     parser.add_argument("--weight", action="append", default=[], metavar="CATEGORY=W")
-    parser.add_argument("--pca", type=float, default=None)
+    parser.add_argument("--pca", type=parse_pca, default=None)
     parser.add_argument("--all-seasons", action="store_true", help="allow repeat comp players")
     return parser
 
 
 def main(argv: Sequence[str] | None = None, cases: Sequence[Case] = CASES) -> int:
+    """Run every case and print an overall summary; returns a process exit code."""
     args = build_parser().parse_args(argv)
     if not args.db.exists():
         print(f"{args.db} not found; run nba-ingest and nba-features first", file=sys.stderr)
         return 2
-    weights = {}
-    for item in args.weight:
-        category, _, value = item.partition("=")
-        weights[category] = float(value)
-    pca = None if args.pca is None else (int(args.pca) if args.pca >= 1 else args.pca)
+    try:
+        weights = parse_weights(args.weight)
+    except argparse.ArgumentTypeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    pca = args.pca
     config = SimilarityConfig(
         metric=args.metric,
         category_weights=weights,

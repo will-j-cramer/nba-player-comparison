@@ -21,6 +21,7 @@ def command(argv: Sequence[str] = ()) -> list[str]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the app with this package's Python; extra arguments go to streamlit."""
     return subprocess.call(command(sys.argv[1:] if argv is None else argv))
 
 

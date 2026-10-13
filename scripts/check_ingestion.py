@@ -9,6 +9,8 @@ import argparse
 import sqlite3
 from pathlib import Path
 
+from nba_similarity.paths import default_db
+
 # (player_id, season, label): well-known seasons to compare against Basketball-Reference.
 SPOT_CHECKS = [
     ("abdulka01", 1976, "Kareem Abdul-Jabbar 1975-76"),
@@ -18,8 +20,14 @@ SPOT_CHECKS = [
 
 
 def main() -> None:
+    """Print the ingestion checks; returns a process exit code."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--db", type=Path, default=Path("data/nba.sqlite"))
+    parser.add_argument(
+        "--db",
+        type=Path,
+        default=default_db(),
+        help="SQLite database (default: $NBA_DB or %(default)s)",
+    )
     args = parser.parse_args()
     conn = sqlite3.connect(args.db)
 

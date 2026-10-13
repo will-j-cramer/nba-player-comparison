@@ -10,6 +10,8 @@ from nba_similarity.similarity.data import FeatureMatrix
 
 
 class PlayerNotFoundError(LookupError):
+    """No qualified player-season matches the name and season."""
+
     pass
 
 

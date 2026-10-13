@@ -6,8 +6,22 @@ from nba_similarity.mapping.metric import (
     MISSING,
     encode_missing,
     typical_distance,
-    typical_distance_reference,
 )
+
+
+def typical_distance_reference(x: np.ndarray, y: np.ndarray, w: np.ndarray) -> float:
+    """Plain numpy version of the metric (NaN = missing)."""
+    both = ~np.isnan(x) & ~np.isnan(y)
+    only_x = ~np.isnan(x) & np.isnan(y)
+    only_y = np.isnan(x) & ~np.isnan(y)
+    neither = np.isnan(x) & np.isnan(y)
+    d = (
+        np.sum(w[both] * (x[both] - y[both]) ** 2)
+        + np.sum(w[only_x] * (x[only_x] ** 2 + 1))
+        + np.sum(w[only_y] * (y[only_y] ** 2 + 1))
+        + np.sum(w[neither] * 2)
+    )
+    return float(np.sqrt(d))
 
 
 def _numba(x: np.ndarray, y: np.ndarray, w: np.ndarray) -> float:

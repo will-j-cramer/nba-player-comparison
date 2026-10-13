@@ -21,6 +21,9 @@ KEEP_ATTRS = {"id", "data-stat", "data-append-csv"}
 
 
 def trim(html: str, table_id: str, max_rows: int | None = None) -> str:
+    """Keep only the stats table `table_id` (optionally its first `max_rows` rows), with
+    only the attributes the parser reads, so test fixtures stay small.
+    """
     soup = BeautifulSoup(html, "lxml", parse_only=SoupStrainer("table", id=table_id))
     table = soup.find("table", id=table_id)
     if table is None:
@@ -40,6 +43,7 @@ def trim(html: str, table_id: str, max_rows: int | None = None) -> str:
 
 
 def main() -> None:
+    """Trim a cached page into a test fixture; returns a process exit code."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("source", type=Path)
     parser.add_argument("table_id", choices=["per_poss", "advanced"])

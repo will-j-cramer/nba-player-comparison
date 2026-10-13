@@ -13,6 +13,7 @@ DEFAULT_K = 6
 
 
 def render(query: sidebar.Query) -> None:
+    """Draw the map page for the sidebar's query."""
     st.title("Map of player-seasons")
     layout = cache.map_layout(query.db, query.mtime)
     if layout is None:

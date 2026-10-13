@@ -17,6 +17,8 @@ _BASIS = {f: basis_column(f) for f in FEATURE_NAMES}
 
 @dataclass(frozen=True)
 class FeatureReport:
+    """Counts from a feature build."""
+
     n_player_seasons: int
     n_qualified: int
     n_seasons: int
