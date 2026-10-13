@@ -32,3 +32,12 @@
   - compact comparison headers (the table scrolled sideways);
   - verdicts for every stat, not only the top-3 lists;
   - no radar fill for profiles with gaps (the fill bridged missing stats).
+
+## Troubleshooting: `No module named 'nba_similarity'`
+- **Seen on the owner's Mac** with both `(.venv)` and conda `(base)` active: `streamlit`
+  resolved to conda base's own Streamlit, whose Python doesn't have the package installed.
+  Their earlier `pytest` header showed 8.4.2 instead of the venv's 9.x, so pytest came from
+  conda too; tests still passed because `pyproject.toml` puts `src/` on the test path.
+- **Fix:** the `nba-app` command (`ui/launch.py`) runs `<venv python> -m streamlit run app.py`.
+  Equivalently: `python -m streamlit run src/nba_similarity/ui/app.py`.
+- **Check:** `which streamlit pytest nba-app` shows which environment each comes from.

@@ -126,8 +126,8 @@ Run with `nba-similar "Nikola Jokic" 2023`. The engine is
   turn off): each comp player appears once, with their best-matching season.
 
 ### 4. `ui/`
-Run with `streamlit run src/nba_similarity/ui/app.py` (database from `$NBA_DB`, default
-`data/nba.sqlite`).
+Run with `nba-app` (`ui/launch.py`: `python -m streamlit run` with this package's Python),
+database from `$NBA_DB`, default `data/nba.sqlite`.
 - **Layering:** `view.py` (tables and series built from engine objects) and `charts.py`
   (Plotly figures) are pure and never import streamlit; `app.py` is only layout and caching.
   Engine logic stays in `similarity/`. Shared text helpers (`season_label`,
@@ -184,8 +184,13 @@ python scripts/validate_archetypes.py  # archetype check: Curry, Shaq, Gobert, C
 pytest
 ruff check .
 ruff format .
-streamlit run src/nba_similarity/ui/app.py   # the app (NBA_DB=path to use another database)
+nba-app                          # the app (NBA_DB=path for another database; extra args go to streamlit)
 ```
+
+Run tools through the project's Python. On machines with conda, its base environment has
+its own `streamlit` and `pytest`, which can shadow the venv's. Use `nba-app`,
+`python -m streamlit run src/nba_similarity/ui/app.py` and `python -m pytest`, never a bare
+`streamlit`.
 
 ## Layout
 
