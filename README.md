@@ -165,6 +165,10 @@ written down beforehand: Curry 2016, Shaq 2000, Gobert 2022, Chris Paul 2008 and
 - It caught the points double-count (the missing Stockton).
 - The obvious check also passed at the Phase 3 gate: with own seasons included, Jokić
   2021-22 ranked #2 for Jokić 2022-23 (score 94.8 then).
+- **The final round:** a mean archetype fit of 92%, with no comps flagged. Curry's list holds
+  Ray Allen, Mark Price and Larry Bird, and Gobert's holds Mutombo, Przybilla and Chandler.
+  One known residual: Eric Murdock still tops Chris Paul's list, on near-identical steal
+  rates.
 
 Design notes and findings for each phase are in [`docs/`](docs/).
 
@@ -207,7 +211,7 @@ reads `$NBA_DB`.
 Development:
 
 ```bash
-python -m pytest      # 224 tests; no network access needed
+python -m pytest      # 233 tests; no network access needed
 ruff check . && ruff format --check .
 ```
 
@@ -215,8 +219,12 @@ Parser tests use trimmed copies of real pages. They aren't committed, so build t
 `scripts/make_fixtures.sh` after an ingest; those tests are skipped until then.
 
 > **Conda users:** conda's base environment has its own `streamlit` and `pytest`, which can
-> shadow the virtualenv's and fail with `ModuleNotFoundError: nba_similarity`. Use `nba-app`
-> and `python -m pytest` rather than bare `streamlit` or `pytest`.
+> shadow the virtualenv's. The symptoms are `ModuleNotFoundError: nba_similarity`, a missing
+> `umap`, or pytest stopping with "This interpreter … can't run the project". Check with
+> `which -a pytest streamlit python`. The project's `.venv/bin` should come first. If it
+> doesn't, run `conda deactivate` before `source .venv/bin/activate`, or turn off conda's
+> auto-activation with `conda config --set auto_activate_base false`. Then use `nba-app` and
+> `python -m pytest` rather than bare `streamlit` or `pytest`.
 
 ## Deploying to Streamlit Community Cloud
 

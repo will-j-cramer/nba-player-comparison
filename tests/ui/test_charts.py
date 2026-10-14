@@ -88,3 +88,8 @@ def test_label_positions_avoid_overlaps() -> None:
     # far apart: all keep the preferred side
     far = charts.label_positions(np.array([0.0, 10.0]), np.zeros(2), [8, 8], px_per_unit=100.0)
     assert far == ["top center", "top center"]
+
+
+def test_map_figure_sets_its_own_height() -> None:
+    fig = charts.map_figure(_map_frame(color_feature="ast_pct"))
+    assert fig.layout.height == 680

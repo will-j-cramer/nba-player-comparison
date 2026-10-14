@@ -20,7 +20,7 @@
   2. *Explanations were the same for every match and could mislead.* Harden got "+11 points"
      for DRB% at 20.6 vs Jokić's 31.3. Matches now carry `similar_traits` (within 1 SD) and
      `differences`, plus the full `contributions`.
-- **Pending:** a re-run of the same five queries on the full database. 149 tests pass.
+- **Full-database validation:** three rounds, below; the gate passed in round 3.
 
 ## Requirements → implementation
 | Requirement | Where |
@@ -94,3 +94,31 @@ Applied, as the owner chose:
   - My wrong expected traits were corrected (Chris Paul TOV%, Giannis 3PA, Gobert usage).
 - **Side effect handled:** with 11 distance stats, 1973-77 seasons (no 3PA/USG%/TOV%) share
   only 8/11 = 73% of the weight. `min_shared` went from 75% to 70% so they stay comparable.
+
+### Round 3 (after 3PA per 100, display-only points and min_shared 70%), owner's full database
+Overall: mean archetype fit **92%** (85% in round 1), mean signature gap 0.90 SD,
+**0/50 comps flagged**.
+
+| Case | Top comps | Fit | Gap |
+|---|---|---|---|
+| Curry 2016 | Ginóbili, Jordan 1990, Arenas, Ray Allen, Chris Paul 2018, Kyrie, Mark Price, Bird | 100% | 1.00 SD |
+| Shaq 2000 | Duncan 2004, Griffin, Stanley Roberts, Giannis 2025, Mobley, McDyess, Mourning, McGee | 90% | 0.81 SD |
+| Gobert 2022 | Mutombo, Przybilla, Chandler, Dwight Howard, Jarrett Allen, DeAndre Jordan | 100% | 0.78 SD |
+| Chris Paul 2008 | Murdock, Haliburton, Kidd, Brandon, Stockton, Payton, Isiah Thomas | 90% | 0.84 SD |
+| Giannis 2020 | Cousins, Embiid, Duncan, McGinnis, LeBron, Luka, Griffin, Malone | 82% | 1.09 SD |
+
+- **Better than round 2:**
+  - Curry's list now holds real high-volume shooters (Ray Allen, Mark Price, Bird, Kyrie).
+    Walter Davis, who has no 3-point data, fell from #3 to #9.
+  - Stockton is back in Chris Paul's top 5.
+- **Residuals, accepted without a code change:** each is a single comp, and chasing it would
+  mean another weighting round with its own side effects.
+  - Eric Murdock 1993-94 is still Chris Paul's #1 (90.8). Both seasons sit at the top of
+    the steal-% scale (3.9 vs 4.0), and defense supplies 42% of the query-to-comp distance.
+    The explanation shows the assist-% gap (52.2 vs 36.9) as a difference, so the
+    output isn't misleading.
+  - Stanley Roberts (#3) and Evan Mobley (#5, fit 5/8) for Shaq are driven by free-throw %
+    and blocks. Their usage gap is listed as a difference.
+- **Phase gate: passed.** The obvious-comp check passed earlier (Jokić 2021-22 ranked #2 for
+  2022-23 with own seasons included), all five archetypes fit 82–100%, and the explanations
+  name the stats that drove each match.

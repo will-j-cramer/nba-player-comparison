@@ -209,6 +209,12 @@ numba compile on first run).
   `scripts/make_fixtures.sh`; tests needing them skip when they are missing.
 - **ruff** for linting and formatting.
 - **Docstrings** on every public module, class and function (one line is fine).
+- **Supported environment:** `environment.py` defines `MIN_STREAMLIT` (1.46: top
+  navigation and `st.context.theme`; the full suite was run on 1.46) and the required
+  modules. `tests/conftest.py` stops pytest with one clear message when the interpreter lacks
+  them, as when conda's `pytest` shadows the venv's. `ui/app.py` shows an error on older
+  Streamlit. Don't pass newer-only keyword arguments to Streamlit calls (set a chart's height
+  in its figure, not with `st.plotly_chart(height=)`).
 - Season labels come from `nba_similarity/seasons.py` (re-exported by `similarity/explain.py`);
   don't redefine `season_label`.
 
@@ -259,6 +265,7 @@ src/nba_similarity/
   mapping/       # 2D UMAP map (precomputed), k-means clusters
   ui/            # Streamlit app (Search and Map pages)
   paths.py       # default database location ($NBA_DB)
+  environment.py # interpreter/dependency checks (clear errors outside the venv)
   seasons.py     # season_label
 streamlit_app.py # Streamlit Community Cloud entry point
 tests/           # mirrors src/nba_similarity/; fixtures/ holds saved HTML

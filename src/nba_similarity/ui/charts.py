@@ -128,6 +128,7 @@ def map_figure(
     color_by: str = "stat",
     color_label: str = "",
     theme: str = "light",
+    height: int = 680,
 ) -> go.Figure:
     """The player-season map: every season as a dimmed point, the query and comps on top.
 
@@ -224,6 +225,7 @@ def map_figure(
         plot_bgcolor="rgba(0,0,0,0)",
         hoverlabel={"namelength": -1, "align": "left"},
         dragmode="pan",
+        height=height,  # in the figure, not st.plotly_chart(height=): older Streamlit lacks it
     )
     return fig
 

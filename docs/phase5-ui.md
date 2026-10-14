@@ -9,8 +9,8 @@
   - Jokić 2022-23 → Sabonis / Harden / Luka…;
   - clicking a row switches the side-by-side table and radar;
   - a cross-era row (Boerwinkle 1973-74) shows the 73% caveat, "n/a" verdicts and radar gaps.
-- **Pending:** the owner's check on the full database. The similarity phase gate (round-3
-  `validate_archetypes.py` output) is also still to be reviewed.
+- **Full database:** the owner ran `nba-app` on it. The similarity phase gate passed in
+  round 3 (see `phase3-similarity.md`).
 
 ## Requirements → implementation
 | Requirement | Where |

@@ -9,10 +9,12 @@ app reads SQLite (database: $NBA_DB) and never scrapes or recomputes features.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import streamlit as st
 
+from nba_similarity.environment import MIN_STREAMLIT, streamlit_too_old
 from nba_similarity.ui import sidebar
 
 HERE = Path(__file__).parent
@@ -21,6 +23,13 @@ HERE = Path(__file__).parent
 def main() -> None:
     """Configure the page, draw the shared sidebar and run the selected page."""
     st.set_page_config(page_title="NBA Player Similarity", page_icon="🏀", layout="wide")
+    if streamlit_too_old(st.__version__):
+        minimum = ".".join(map(str, MIN_STREAMLIT))
+        st.error(
+            f"This app needs Streamlit {minimum} or newer, but {sys.executable} has "
+            f"{st.__version__}. Run it with `nba-app` from the project's virtualenv."
+        )
+        st.stop()
     page = st.navigation(
         [
             st.Page(HERE / "search_page.py", title="Search", icon="🔎", default=True),

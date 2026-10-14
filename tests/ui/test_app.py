@@ -174,3 +174,11 @@ def test_database_downloaded_from_secret_url(
     assert not target.exists() and len(calls) == 1
     assert calls[0][1]["headers"]["Authorization"] == "Bearer secret"  # type: ignore[index]
     assert len(at.dataframe[0].value) == 10
+
+
+def test_old_streamlit_shows_a_clear_error(db: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import streamlit
+
+    monkeypatch.setattr(streamlit, "__version__", "1.40.0")
+    at = run(AppTest.from_file(APP))
+    assert "needs Streamlit 1.46 or newer" in at.error[0].value

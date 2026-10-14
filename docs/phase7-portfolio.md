@@ -48,5 +48,23 @@
     downloading.
 - **Not verifiable here:** the actual Streamlit Community Cloud setup (private data repo,
   token, app creation), which the owner does by following the README.
-- **Still open from Phase 3:** the round-3 `validate_archetypes.py` output on the full
-  database.
+- **Phase 3 gate:** closed with the round-3 validation (92% archetype fit, 0/50 comps
+  flagged).
+
+## Follow-up: the owner's local run
+The owner's bare `pytest` and `streamlit` resolved to conda's base install, not the project
+venv: pytest 8.4.2 with conda's anyio plugin, and a traceback under `/opt/anaconda3`. That
+produced three failures:
+- missing `umap`;
+- `ModuleNotFoundError: nba_similarity`;
+- a map-page warning. Older Streamlit treats `st.plotly_chart(height=...)` as a deprecated
+  keyword argument.
+
+Fixes:
+- The map's height is set in the Plotly figure instead.
+- `streamlit>=1.46` is the real floor: the first version with `st.navigation(position="top")`
+  and `st.context.theme`, verified by running the full suite in a throwaway venv. 1.43 fails
+  outright, and 1.44–1.45 pass only by accident.
+- `nba_similarity/environment.py` adds a check. `tests/conftest.py` uses it to stop pytest
+  with one message naming the interpreter and the fix, and the app shows an error on a
+  Streamlit older than 1.46.

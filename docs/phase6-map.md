@@ -23,9 +23,8 @@
   - Labels: comp names overlapped around the star in the first version, so comps are now
     numbered rings with a names key under the map, and label sides are chosen to avoid
     overlaps.
-- **Pending:** the owner's run on the full database (~16k seasons; expect 1–2 minutes for
-  `nba-map`). The similarity phase gate (round-3 `validate_archetypes.py` output) is also
-  still open.
+- **Full database:** the owner's `nba-map` placed all 15,990 qualified seasons in 54 s. The
+  era-mixing check above is still worth repeating on that map.
 
 ## Requirements → implementation
 | Requirement | Where |

@@ -67,7 +67,6 @@ def render(query: sidebar.Query) -> None:
     label = view.SHORT_LABELS.get(color_feature, color_feature) if color_feature is not None else ""
     st.plotly_chart(
         charts.map_figure(frame, color_by=color_by, color_label=label, theme=theme_type()),
-        height=680,
         config={"scrollZoom": True},
     )
 
