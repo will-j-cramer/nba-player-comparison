@@ -15,6 +15,7 @@ nba-features = "nba_similarity.features.cli:main"
 nba-similar = "nba_similarity.similarity.cli:main"
 nba-app = "nba_similarity.ui.launch:main"
 nba-map = "nba_similarity.mapping.cli:main"
+nba-career = "nba_similarity.careers.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

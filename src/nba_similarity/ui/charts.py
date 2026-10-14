@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from nba_similarity.ui.view import RadarData
+from nba_similarity.ui.view import RadarData, TrajectorySeries
 
 # Categorical slots 1 and 2 of the validated reference palette (light / dark steps); both
 # pairs pass the CVD, normal-vision and contrast checks against their surfaces.
@@ -273,3 +273,74 @@ def label_positions(
 
 def _overlaps(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+# ---------------------------------------------------------------- career trajectory
+
+BAND = {"light": "rgba(26, 26, 25, 0.10)", "dark": "rgba(240, 239, 236, 0.14)"}
+
+
+def _points(values: np.ndarray) -> list[float | None]:
+    return [None if np.isnan(v) else float(v) for v in values]
+
+
+def trajectory_figure(
+    query: TrajectorySeries,
+    comp: TrajectorySeries | None,
+    band: TrajectorySeries | None,
+    stat_label: str,
+    theme: str = "light",
+) -> go.Figure:
+    """A stat's within-season percentile by age: the query's window, one comp's whole run
+    (window and after), and the projection's median with its 25-75% band. Missing seasons
+    are gaps, never zeros."""
+    mode = "dark" if theme == "dark" else "light"
+    fig = go.Figure()
+    if band is not None and len(band.ages):
+        low, mid, high = (band.pct[:, i] for i in range(3))
+        fig.add_trace(
+            go.Scatter(
+                x=list(band.ages) + list(band.ages)[::-1],
+                y=_points(high) + _points(low)[::-1],
+                mode="lines", fill="toself", fillcolor=BAND[mode], line={"width": 0},
+                hoverinfo="skip", name="Projection, 25–75%", connectgaps=False,
+            )
+        )  # fmt: skip
+        fig.add_trace(
+            go.Scatter(
+                x=list(band.ages), y=_points(mid), name="Projection, median",
+                mode="lines+markers", line={"color": INK[mode], "dash": "dash", "width": 2},
+                marker={"size": 6, "color": INK[mode]},
+                hovertemplate="age %{x}: median %{y:.0f}th pct<extra>projection</extra>",
+            )
+        )  # fmt: skip
+    for series, color, width in (
+        (comp, MATCH_COLOR[mode], 2),
+        (query, QUERY_COLOR[mode], 3),
+    ):
+        if series is None:
+            continue
+        hover = [
+            f"age {a}: no full season" if np.isnan(p) else f"age {a}: {r:.3g} ({p:.0f}th pct)"
+            for a, p, r in zip(series.ages, series.pct, series.raw, strict=True)
+        ]
+        fig.add_trace(
+            go.Scatter(
+                x=list(series.ages), y=_points(series.pct), name=series.label,
+                mode="lines+markers", connectgaps=False,
+                line={"color": color, "width": width}, marker={"size": 8, "color": color},
+                hovertext=hover, hoverinfo="text+name",
+            )
+        )  # fmt: skip
+    fig.update_layout(
+        xaxis={"title": "Age", "dtick": 1, "gridcolor": GRID[mode], "zeroline": False},
+        yaxis={
+            "title": f"{stat_label}, percentile within season",
+            "range": [0, 100], "tickvals": [0, 25, 50, 75, 100], "gridcolor": GRID[mode],
+        },
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "x": 0},
+        margin={"l": 60, "r": 20, "t": 40, "b": 50},
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        height=420, hoverlabel={"namelength": -1},
+    )  # fmt: skip
+    return fig

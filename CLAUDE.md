@@ -30,7 +30,7 @@ Scraping etiquette (non-negotiable):
 ## Architecture
 
 Four phases, each its own package under `src/nba_similarity/`, plus `mapping/` for the app's
-map page:
+map page and `careers/` for career trajectory comps:
 
 ```
 Basketball-Reference
@@ -43,8 +43,9 @@ Basketball-Reference
  similarity/  ──►  top-N matches + per-feature contribution breakdowns
         │
         ├──► mapping/  ──►  SQLite map table (precomputed 2D UMAP positions)
+        ├──► careers/  ──►  career comps by age + outcome-based projection
         ▼
- ui/          ──►  Streamlit app, Search + Map pages (read-only over SQLite)
+ ui/          ──►  Streamlit app, Search + Map + Careers pages (read-only over SQLite)
 ```
 
 ### 1. `ingestion/`
@@ -134,7 +135,7 @@ database from `paths.default_db()` (`$NBA_DB`, default `data/nba.sqlite`; every 
 uses the same default).
 - **Pages:** `app.py` is the entry point. It draws the shared query sidebar (`sidebar.py`;
   the same widget keys on every page, so the selection survives page switches) and runs
-  `st.navigation` over `search_page.py` and `map_page.py`.
+  `st.navigation` over `search_page.py`, `map_page.py` and `career_page.py`.
 - **Layering:** `view.py` (tables and series built from engine objects) and `charts.py`
   (Plotly figures) are pure and never import streamlit; the page scripts are only layout,
   and the cached loaders live in `cache.py`. Engine logic stays in `similarity/` and map
@@ -179,10 +180,41 @@ numba compile on first run).
   slider and clusters match the visual groups), numbered by size and named by their two most
   extreme mean z-scores among the distance stats ("high AST%, high USG%").
 
+### 6. `careers/`
+Run with `nba-career "Victor Wembanyama" --through-age 21`. Owner's decisions (Phase 8): age
+slots weighted toward recent seasons, minutes per game as a trajectory-only stat, ABA
+rosters fetched, 250-minute minimum for trajectories.
+- **Aligned by age:** B-Ref's season age (age on Feb 1), stored in `player_seasons.age`; no
+  birthdates. `career_players.birth_offset` = season − age, so the season at any age is
+  `birth_offset + age`. Experience (NBA seasons so far) is shown, with an optional
+  `--max-experience-gap` filter.
+- **Window:** one 13-stat slot per age (the 12 season stats + minutes per game, points
+  per 100 still display-only) for the last `window` ages (default 3, from the debut). Slot
+  weights are geometric toward the latest age (1, 0.6, 0.36). Scored with
+  `similarity/scoring.masked_scores`. Baseline: per (age, stat) moments over every scored
+  season at that age, not over the candidates.
+- **Seasons:** `player_season_career_features` (built by `nba-features`, `features/career.py`)
+  has every ingested season with a status: qualified (≥ 500 scaled), partial (≥ 250 scaled,
+  z-scored against the *qualified* season stats, which stay untouched) or limited (no
+  z-scores). A partial slot's points are scaled by reliability `min(1, MP / minimum)`. A
+  missing slot is typical (0 points, still in the total). Candidates need a scored season
+  at the last window age and ≥ 60% of the window's weight in common.
+- **Censoring:** `career_players.censored_through_age` marks careers first seen in 1973-74
+  (may have started earlier) and ABA players (`aba_rosters`, fetched by `nba-ingest` from 9
+  ABA league pages, ids only). Such players aren't candidates for windows that touch those
+  ages. Pre-1974 seasons can't be backfilled: possessions, steals and blocks weren't
+  tracked.
+- **Outcomes** (`outcomes.py`): each future age is qualified / limited (played, under 500) /
+  out (no NBA season). "Out" is an outcome, never dropped (no survivor bias). Only comps
+  whose whole horizon is in ingested final seasons feed the projection; others show as
+  pending. The projection is score-weighted: class shares per age, and stat quantiles
+  (25/50/75) over qualified comps as within-season percentiles and in the latest season's
+  terms (inverse of the basis transform).
+
 ## Deployment (Streamlit Community Cloud)
 - The database is never committed: the repo is public and scraped data must not be
   redistributed. `scripts/export_app_db.py` writes a slim copy holding only the tables the
-  app reads (`players`, the three feature tables, the two map tables) to
+  app reads (`players`, the three feature tables, the two map tables, the three career tables and `ingested_seasons`) to
   `data/processed/nba_app.sqlite`; it refuses a missing or stale map. The owner uploads it
   somewhere private (README: a private GitHub release asset).
 - `ui/remote_db.py` (pure, no streamlit): `ensure_db` streams `NBA_DB_URL` with an optional
@@ -246,6 +278,7 @@ pytest
 ruff check .
 ruff format .
 nba-map                          # precompute the 2D map for the app (re-run after nba-features)
+nba-career "Victor Wembanyama" --through-age 21  # career comps + projection; --window 3 --horizon 5
 python scripts/export_app_db.py  # slim app DB for deployment → data/processed/ (never commit)
 nba-app                          # the app (NBA_DB=path for another database; extra args go to streamlit)
 ```
@@ -263,6 +296,7 @@ src/nba_similarity/
   features/      # cleaning, era adjustment, normalization
   similarity/    # distance computation, top-N, explanations
   mapping/       # 2D UMAP map (precomputed), k-means clusters
+  careers/       # career trajectory comps by age, outcomes, projection
   ui/            # Streamlit app (Search and Map pages)
   paths.py       # default database location ($NBA_DB)
   environment.py # interpreter/dependency checks (clear errors outside the venv)

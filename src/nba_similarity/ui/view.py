@@ -15,18 +15,19 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from nba_similarity.careers.data import SCORED, CareerData
+from nba_similarity.careers.engine import CareerResult
+from nba_similarity.careers.format import format_outcome, format_trait
 from nba_similarity.similarity.data import FeatureMatrix
 from nba_similarity.similarity.engine import Match
-from nba_similarity.similarity.explain import format_contribution, format_value, season_label
+from nba_similarity.similarity.explain import (
+    SHORT_LABELS,
+    format_contribution,
+    format_value,
+    season_label,
+)
 
 LeagueAverages = dict[tuple[int, str], float]
-
-# Short axis labels for the radar, where the full labels don't fit.
-SHORT_LABELS = {
-    "pts": "PTS/100", "usg_pct": "USG%", "fg3a": "3PA/100", "fta_rate": "FTr",
-    "ts_pct": "TS%", "ft_pct": "FT%", "ast_pct": "AST%", "tov_pct": "TOV%",
-    "orb_pct": "ORB%", "drb_pct": "DRB%", "stl_pct": "STL%", "blk_pct": "BLK%",
-}  # fmt: skip
 
 
 @dataclass(frozen=True)
@@ -277,3 +278,98 @@ def map_frame(
         }
     )
     return frame[np.isfinite(xy).all(axis=1)].reset_index(drop=True)
+
+
+# ---------------------------------------------------------------- career page
+
+
+def career_ages(data: CareerData, player_id: str) -> list[int]:
+    """Ages with a season the career comps can use (qualified or partial), newest first."""
+    rows = [data.row(player_id, s) for s in data.player_seasons(player_id)]
+    return sorted(
+        {int(data.ages[r]) for r in rows if r is not None and data.status[r] in SCORED},
+        reverse=True,
+    )
+
+
+def career_comps_frame(result: CareerResult, horizon: int) -> pd.DataFrame:
+    """The career comps table: one row per comp, best first."""
+    first = result.through_age + 1
+    return pd.DataFrame(
+        {
+            "Rank": range(1, len(result.comps) + 1),
+            "Player": [c.name for c in result.comps],
+            "Score": [round(c.score, 1) for c in result.comps],
+            "Seasons in": [c.experience for c in result.comps],
+            "Window": ["" if c.shared >= 0.999 else f"{c.shared:.0%}" for c in result.comps],
+            f"Ages {first}-{first + horizon - 1}": [
+                format_outcome(c.outcome, horizon, first) for c in result.comps
+            ],
+            "Alike": ["; ".join(format_trait(t) for t in c.similar_traits) for c in result.comps],
+            "Differ": ["; ".join(format_trait(t) for t in c.differences) for c in result.comps],
+        }
+    )
+
+
+def outcome_frame(result: CareerResult) -> pd.DataFrame:
+    """Per future age: score-weighted % of the observable comps in each outcome class."""
+    ages = result.projection.ages
+    return pd.DataFrame(
+        {
+            "Age": [a.age for a in ages],
+            "Full season": [round(100 * a.shares["qualified"]) for a in ages],
+            "Under the minimum": [round(100 * a.shares["limited"]) for a in ages],
+            "Not in the NBA": [round(100 * a.shares["out"]) for a in ages],
+            "Comps with stats": [a.n_qualified for a in result.projection.ages],
+        }
+    )
+
+
+def projection_frame(result: CareerResult, data: CareerData, stats: Sequence[str]) -> pd.DataFrame:
+    """Projected stats per future age: median [25-75%] in the latest season's terms."""
+    columns: dict[str, list[str]] = {"Age": []}
+    for age in result.projection.ages:
+        columns["Age"].append(str(age.age))
+        for stat in stats:
+            j = data.stats.index(stat)
+            p25, p50, p75 = age.today[j]
+            label = SHORT_LABELS.get(stat, stat)
+            text = "–" if np.isnan(p50) else f"{p50:.3g} ({p25:.3g}–{p75:.3g})"
+            columns.setdefault(label, []).append(text)
+    return pd.DataFrame(columns)
+
+
+@dataclass(frozen=True)
+class TrajectorySeries:
+    """One player's within-season percentile of one stat, by age (NaN = no full data)."""
+
+    label: str
+    ages: tuple[int, ...]
+    pct: np.ndarray
+    raw: np.ndarray
+
+
+def trajectory_series(
+    data: CareerData, player_id: str, label: str, ages: Sequence[int], stat: str
+) -> TrajectorySeries:
+    """Percentiles at `ages` for seasons the comps use (qualified or partial); NaN otherwise."""
+    j = data.stats.index(stat)
+    pct, raw = [], []
+    for age in ages:
+        row = data.row(player_id, data.season_at_age(player_id, age))
+        ok = row is not None and data.status[row] in SCORED
+        pct.append(percentile(np.array([data.z[row, j]]))[0] if ok else np.nan)
+        raw.append(data.raw[row, j] if ok else np.nan)
+    return TrajectorySeries(label, tuple(ages), np.array(pct), np.array(raw))
+
+
+def projection_band(result: CareerResult, stat: str) -> TrajectorySeries:
+    """The projection by future age: `pct` is (n, 3), the 25th/50th/75th percentile."""
+    j = result.stats.index(stat)
+    ages = tuple(a.age for a in result.projection.ages)
+    return TrajectorySeries(
+        "Projection",
+        ages,
+        np.array([a.pct[j] for a in result.projection.ages]).reshape(len(ages), 3),
+        np.full(len(ages), np.nan),
+    )

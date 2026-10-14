@@ -1,10 +1,11 @@
 """Streamlit app: `nba-app` (or `python -m streamlit run src/nba_similarity/ui/app.py`, or
 `streamlit_app.py` at the repository root, which Streamlit Community Cloud runs).
 
-Entry point: draws the shared query sidebar, then runs the selected page (search_page.py or
-map_page.py). Layout and caching only: comparisons come from the similarity engine, tables
-and series from ui/view.py, figures from ui/charts.py, cached loaders from ui/cache.py. The
-app reads SQLite (database: $NBA_DB) and never scrapes or recomputes features.
+Entry point: draws the shared query sidebar, then runs the selected page (search_page.py,
+map_page.py or career_page.py). Layout and caching only: comparisons come from the engines,
+tables and series from ui/view.py, figures from ui/charts.py, cached loaders from
+ui/cache.py. The app reads SQLite (database: $NBA_DB) and never scrapes or recomputes
+features.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ def main() -> None:
         [
             st.Page(HERE / "search_page.py", title="Search", icon="🔎", default=True),
             st.Page(HERE / "map_page.py", title="Map", icon="🗺️"),
+            st.Page(HERE / "career_page.py", title="Careers", icon="📈"),
         ],
         position="top",
     )

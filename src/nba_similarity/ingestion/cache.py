@@ -32,11 +32,16 @@ def fetch_page(
     season: int, page: Page, client: Fetcher, raw_dir: Path, *, refresh: bool = False
 ) -> str:
     """Return the page HTML from the cache, downloading and caching it if missing or `refresh`."""
-    path = cache_path(raw_dir, season, page)
+    return fetch_cached(page_url(season, page), cache_path(raw_dir, season, page), client,
+                        refresh=refresh)  # fmt: skip
+
+
+def fetch_cached(url: str, path: Path, client: Fetcher, *, refresh: bool = False) -> str:
+    """Return `path`'s HTML if cached; otherwise download `url` and cache it atomically."""
     if path.exists() and not refresh:
         return path.read_text(encoding="utf-8")
-    html = client.get(page_url(season, page))
-    raw_dir.mkdir(parents=True, exist_ok=True)
+    html = client.get(url)
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(html, encoding="utf-8")
     tmp.replace(path)

@@ -43,8 +43,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             report = build_features(conn)
             print(
                 f"built features for {report.n_qualified} of {report.n_player_seasons} "
-                f"player-seasons across {report.n_seasons} seasons\n"
+                f"player-seasons across {report.n_seasons} seasons; "
+                f"{report.n_career_scored} seasons usable for career trajectories"
             )
+            if not report.aba_rosters_loaded:
+                print(
+                    "note: no ABA rosters yet, so careers that began in the ABA are not "
+                    "flagged; re-run nba-ingest to fetch them"
+                )
+            print()
         print_feature_summary(conn)
     except (ValueError, sqlite3.OperationalError) as exc:
         print(f"error: {exc}", file=sys.stderr)

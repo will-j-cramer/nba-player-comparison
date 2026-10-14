@@ -65,6 +65,17 @@ SHORT_SCHEDULES: dict[int, int] = {  # season end year -> games per team
     2021: 72,  # COVID-shortened schedule
 }
 
+# Career trajectories (careers/) also count seasons down to this many minutes (scaled the
+# same way), z-scored against the qualified players' statistics; such "partial" seasons are
+# down-weighted by MP / the season's MIN_MINUTES. Season comps still use MIN_MINUTES.
+CAREER_MIN_MINUTES = 250
+# Playing time: a trajectory-only stat (role predicts development), z-scored per season over
+# qualified players. Not used by the season comps.
+MPG_FEATURE = "mpg"
+MPG_LABEL = "Minutes per game"
+MPG_CATEGORY = "role"
+FIRST_OBSERVED_SEASON = 1974  # a career first seen in 1973-74 may have started earlier
+
 # A stat is used for a season only if at least this share of qualified players have it
 # (e.g. 1973-74 has turnovers only for Seattle players, so TOV% is not used that season).
 COVERAGE_MIN = 0.90

@@ -182,3 +182,49 @@ def test_old_streamlit_shows_a_clear_error(db: Path, monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(streamlit, "__version__", "1.40.0")
     at = run(AppTest.from_file(APP))
     assert "needs Streamlit 1.46 or newer" in at.error[0].value
+
+
+@pytest.fixture
+def league_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    from tests.careers.conftest import build_league
+
+    path = tmp_path / "league.sqlite"
+    conn = sqlite3.connect(path)
+    build_league(conn)
+    conn.close()
+    monkeypatch.setenv("NBA_DB", str(path))
+    return path
+
+
+def career_page(at: AppTest, player_label: str) -> AppTest:
+    run(at)
+    box = at.selectbox(key="player")
+    box.select_index(box.options.index(player_label))
+    run(at)
+    at.switch_page("career_page.py")
+    return run(at)
+
+
+def test_career_page_shows_comps_chart_and_projection(league_db: Path) -> None:
+    at = career_page(AppTest.from_file(APP), "Player query (2005–2007)")
+    assert at.title[0].value == "Career trajectory comps"
+    assert "through age 21" in at.subheader[0].value
+    comps = at.dataframe[0].value
+    assert comps.loc[0, "Player"] == "Player twin"
+    assert len(at.get("plotly_chart")) == 1
+    assert "known outcomes" in at.subheader[1].value
+    at.selectbox(key="career_age").set_value(20)
+    at.slider(key="career_window").set_value(1)
+    at.selectbox(key="career_stat").set_value("mpg")
+    at = run(at)
+    assert "through age 20" in at.subheader[0].value and not at.error
+
+
+def test_career_page_without_career_tables(db: Path) -> None:
+    conn = sqlite3.connect(db)
+    conn.execute("DROP TABLE player_season_career_features")
+    conn.close()
+    at = run(AppTest.from_file(APP))
+    at.switch_page("career_page.py")
+    at = run(at)
+    assert "Career data isn't built yet" in at.info[0].value

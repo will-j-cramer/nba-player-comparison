@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 
+from nba_similarity.ingestion.aba import ingest_aba
 from nba_similarity.ingestion.client import (
     DEFAULT_DELAY_S,
     FetchError,
@@ -58,6 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--force", action="store_true", help="re-download and reload seasons already loaded"
     )
     parser.add_argument(
+        "--skip-aba",
+        action="store_true",
+        help="don't fetch the 9 ABA roster pages (used to flag careers that began in the ABA)",
+    )
+    parser.add_argument(
         "--delay",
         type=_delay,
         default=DEFAULT_DELAY_S,
@@ -78,15 +84,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args.db.parent.mkdir(parents=True, exist_ok=True)
     conn = connect(str(args.db))
+    client = PoliteClient(args.delay)
     try:
         report = ingest(
             range(args.start, end + 1),
             conn,
-            PoliteClient(args.delay),
+            client,
             args.raw_dir,
             parse_page,
             force=args.force,
         )
+        aba = None if args.skip_aba else ingest_aba(conn, client, args.raw_dir)
     except RateLimitedError as exc:
         logger.error("%s. Seasons loaded so far are kept; re-run later to resume.", exc)
         return 3
@@ -105,6 +113,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"skipped {len(report.skipped)} already loaded, "
         f"{len(report.unavailable)} unavailable {report.unavailable or ''}".rstrip()
     )
+    if aba is not None:
+        print(
+            f"ABA rosters: loaded {len(aba.loaded)} seasons, skipped {len(aba.skipped)} "
+            f"already stored, {len(aba.unavailable)} unavailable {aba.unavailable or ''}".rstrip()
+        )
     return 0
 
 

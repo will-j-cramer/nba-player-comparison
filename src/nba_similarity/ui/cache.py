@@ -11,6 +11,8 @@ import sqlite3
 import numpy as np
 import streamlit as st
 
+from nba_similarity.careers.data import CareerData, load_career_data
+from nba_similarity.careers.engine import CareerConfig, CareerEngine, CareerResult
 from nba_similarity.mapping.cluster import cluster_names, kmeans_labels
 from nba_similarity.mapping.store import is_stale, load_map
 from nba_similarity.similarity.config import SimilarityConfig
@@ -102,3 +104,32 @@ def map_clusters(db_path: str, mtime: float, k: int) -> tuple[np.ndarray, dict[i
         include=matrix.in_distance,
     )
     return labels, names
+
+
+CareerKey = tuple[int, int, tuple[tuple[str, float], ...]]  # window, horizon, weights
+
+
+@st.cache_resource(show_spinner="Loading careers…")
+def load_careers(db_path: str, mtime: float) -> CareerData:
+    """The career data (ValueError when nba-features hasn't built the career tables)."""
+    conn = sqlite3.connect(db_path)
+    try:
+        return load_career_data(conn)
+    finally:
+        conn.close()
+
+
+@st.cache_resource(max_entries=16)
+def get_career_engine(db_path: str, mtime: float, key: CareerKey) -> CareerEngine:
+    """One CareerEngine per settings combination."""
+    window, horizon, weights = key
+    config = CareerConfig(window=window, horizon=horizon, category_weights=dict(weights))
+    return CareerEngine(load_careers(db_path, mtime), config)
+
+
+@st.cache_data(max_entries=128, show_spinner="Comparing careers…")
+def career_comps(
+    db_path: str, mtime: float, key: CareerKey, player_id: str, through_age: int
+) -> CareerResult:
+    """Career comps and projection for a player through an age."""
+    return get_career_engine(db_path, mtime, key).find_comps(player_id, through_age)

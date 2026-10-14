@@ -2,10 +2,12 @@
 
     python scripts/export_app_db.py [--db data/nba.sqlite] [--out data/processed/nba_app.sqlite]
 
-Copies only the tables the app reads: player names, the feature tables and the map. The raw
-scraped tables (per-100 and advanced stats, team stints) stay behind. Run `nba-features` and
-`nba-map` first; a missing or out-of-date map is refused. Upload the result somewhere private
-and point the app's NBA_DB_URL secret at it (see the README). Never commit it.
+Copies only the tables the app reads: player names, the feature tables, the map and the
+career tables (derived z-scores and per-season rows), plus the list of ingested seasons. The
+raw scraped tables (per-100 and advanced stats, team stints, ABA rosters) stay behind. Run
+`nba-features` and `nba-map` first; a missing or out-of-date map is refused. Upload the
+result somewhere private and point the app's NBA_DB_URL secret at it (see the README). Never
+commit it.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from nba_similarity.careers.data import load_career_data
 from nba_similarity.mapping.store import is_stale, load_map
 from nba_similarity.paths import default_db
 from nba_similarity.similarity.data import load_feature_matrix
@@ -27,6 +30,10 @@ APP_TABLES = (
     "player_season_features",
     "player_season_map",
     "map_metadata",
+    "player_season_career_features",
+    "career_players",
+    "career_season_stats",
+    "ingested_seasons",  # which seasons are complete (career outcomes); no scraped stats
 )
 DEFAULT_OUT = Path("data/processed/nba_app.sqlite")
 
@@ -81,6 +88,7 @@ def export_app_db(source: sqlite3.Connection, out: Path) -> dict[str, int]:
                 dest.execute(sql)
         dest.execute("VACUUM")
         load_feature_matrix(dest)  # the app can read it
+        load_career_data(dest)
         if is_stale(dest, load_map(dest)):  # type: ignore[arg-type]
             raise ExportError("exported map does not match the exported features")
     finally:

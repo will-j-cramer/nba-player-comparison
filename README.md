@@ -15,6 +15,11 @@ alike on defensive rebound %, true shooting % and turnover %. They differ mainly
 > averages and verdicts, next to the percentile radar chart.
 <!-- ![Comparison view](docs/images/comparison.png) -->
 
+> 📸 **Screenshot placeholder: Careers page.** Wembanyama through age 21: the comps table
+> with next-season marks, the trajectory chart with the projection band, and the outcome
+> shares.
+<!-- ![Careers page](docs/images/careers.png) -->
+
 > 📸 **Screenshot placeholder: Map page.** All ~16,000 player-seasons on the UMAP map,
 > colored by k-means cluster, with Jokić's star and his numbered top comps.
 <!-- ![Map page](docs/images/map.png) -->
@@ -38,7 +43,12 @@ alike on defensive rebound %, true shooting % and turnover %. They differ mainly
 - **Map:** every season placed in 2D with UMAP, so similar players cluster together. Hover a
   point for its stats, color by any stat or by k-means cluster, and see the selected season
   and its comps highlighted.
-- **Command line:** `nba-similar "Nikola Jokic" 2023` prints the same results in a terminal.
+- **Career trajectories:** "Victor Wembanyama through age 21" finds the players whose careers
+  through the same age looked most alike, season by season, and shows what they did next:
+  how many played full seasons, played less, or left the league, plus a score-weighted range
+  for their stats.
+- **Command line:** `nba-similar "Nikola Jokic" 2023` and
+  `nba-career "Victor Wembanyama" --through-age 21` print the same results in a terminal.
 
 ## Methodology
 
@@ -156,6 +166,30 @@ Choices worth explaining:
 - **Fixed weights:** positions use the default weights. The highlighted comps follow your
   sliders, and the page says so.
 
+### Career trajectories
+- **Aligned by age, not years in the league.** Development tracks age: a 21-year-old in his
+  second season and a 21-year-old rookie out of college are both compared with other
+  21-year-olds. Ages are Basketball-Reference's age on February 1, so no birthdates are
+  needed. Years in the league are shown, and can be capped.
+- **The window keeps the trajectory.** Each age is its own slot of stats, compared with the
+  same age, with recent ages weighted more (1, 0.6, 0.36). Averaging would make a rising and
+  a falling career with the same mean look identical.
+- **Playing time counts.** Minutes per game is a trajectory-only stat: a 30-minute starter
+  at 20 and a 12-minute reserve are on different paths.
+- **Young players' short seasons count, at a discount.** Seasons of 250–499 minutes are
+  scored against the qualified players' statistics, but their points are scaled by
+  MP / 500. A season the player didn't play counts as "typical" (no credit, still in the
+  total). Our data can't tell an injury from a G League or overseas year, and says so.
+- **Truncated careers are excluded, not guessed.** Careers first seen in 1973-74 may have
+  started earlier, and ABA players' early years aren't on NBA pages. Both are flagged (the
+  ABA rosters are fetched once, for ids only) and not compared over the missing ages.
+  Earlier seasons can't be backfilled: possessions, steals and blocks weren't tracked
+  before 1973-74.
+- **No survivor bias.** The projection uses only comps whose next seasons have all been
+  played, and a comp who left the league counts as such. Stats are summarized only over
+  comps who played a full season, as within-season percentiles and in the latest season's
+  terms. Comps whose future is still unfolding are shown as peers.
+
 ### Validation
 `scripts/validate_archetypes.py` checks five well-known archetypes against "signature traits"
 written down beforehand: Curry 2016, Shaq 2000, Gobert 2022, Chris Paul 2008 and Giannis
@@ -192,8 +226,8 @@ nba-features    # era-adjusted feature tables and a sanity summary
 nba-map         # precompute the 2D map (1–2 min; the first run compiles numba code)
 ```
 
-`nba-ingest` fetches 2 pages per season, one request every 4 seconds: about 106 pages, roughly
-7–8 minutes. It caches every page under `data/raw/` and is resumable: stop it any time and
+`nba-ingest` fetches 2 pages per season plus 9 ABA roster pages (used only to flag careers that
+began in the ABA), one request every 4 seconds: about 115 pages, roughly 8 minutes. It caches every page under `data/raw/` and is resumable: stop it any time and
 re-run it.
 
 Use it:
@@ -202,6 +236,7 @@ Use it:
 nba-app                                   # the Streamlit app at http://localhost:8501
 nba-similar "Nikola Jokic" 2023           # top 10 comps in the terminal
 nba-similar "Stephen Curry" 2016 --weight scoring=2 --metric cosine
+nba-career "Victor Wembanyama" --through-age 21    # career comps and what came next
 python scripts/validate_archetypes.py     # the archetype check
 ```
 
@@ -211,7 +246,7 @@ reads `$NBA_DB`.
 Development:
 
 ```bash
-python -m pytest      # 233 tests; no network access needed
+python -m pytest      # 261 tests; no network access needed
 ruff check . && ruff format --check .
 ```
 
@@ -303,7 +338,8 @@ src/nba_similarity/
   features/    feature definitions, qualification, transforms, per-season z-scores, nba-features
   similarity/  feature matrix, scoring, engine with exact explanations, nba-similar
   mapping/     UMAP with the engine's distance, map storage, k-means clusters, nba-map
-  ui/          Streamlit app: entry point, shared sidebar, Search/Map pages, pure view +
+  careers/     career windows by age, career comps, outcomes and projection, nba-career
+  ui/          Streamlit app: entry point, shared sidebar, Search/Map/Careers pages, pure view +
                chart builders, cached loaders, database download
   paths.py     default database location ($NBA_DB)
 scripts/       validate_archetypes.py, export_app_db.py, check_ingestion.py, fixture tools
@@ -327,6 +363,9 @@ Streamlit's `AppTest`.
 - **Similarity is not value.** Two seasons can have the same *shape* at very different
   levels of impact. Use the score as "plays like", not "as good as".
 - **The map uses fixed default weights**, because it is precomputed.
+- **Career projections are rough.** They summarize 10–20 similar careers, not a model of
+  development, and ages are whole years (a player born in January and one born in December
+  share an "age").
 
 ## Data and license
 

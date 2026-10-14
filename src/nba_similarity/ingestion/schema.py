@@ -62,6 +62,14 @@ CREATE TABLE IF NOT EXISTS player_season_teams (
 {_stats_table("per100_stats", PER100_COLUMNS)}
 {_stats_table("advanced_stats", ADVANCED_COLUMNS)}
 
+-- Players on an ABA roster (1967-68 to 1975-76), only to mark NBA careers whose start is not
+-- in our NBA-only data (see ingestion/aba.py). No ABA stats are stored.
+CREATE TABLE IF NOT EXISTS aba_rosters (
+    player_id TEXT NOT NULL,
+    season    INTEGER NOT NULL,
+    PRIMARY KEY (player_id, season)
+);
+
 CREATE TABLE IF NOT EXISTS ingested_seasons (
     season           INTEGER PRIMARY KEY,
     is_final         INTEGER NOT NULL,
